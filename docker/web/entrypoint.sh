@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 set -e
-
-# DB 대기
-until python - <<'PY'
-import os, psycopg2, time
-dsn = f"dbname={os.environ['POSTGRES_DB']} user={os.environ['POSTGRES_USER']} password={os.environ['POSTGRES_PASSWORD']} host=db"
-for _ in range(30):
-    try: psycopg2.connect(dsn).close(); break
-    except Exception: time.sleep(1)
-else: raise SystemExit("DB not ready")
+python - <<'PY'
+import os, time
+import psycopg
+dsn = f"dbname={os.environ.get('POSTGRES_DB','mrdinner')} user={os.environ.get('POSTGRES_USER','mrdinner')} password={os.environ.get('POSTGRES_PASSWORD','mrdinner')} host={os.environ.get('POSTGRES_HOST','db')} port={os.environ.get('POSTGRES_PORT','5432')}"
+for _ in range(60):
+    try:
+        with psycopg.connect(dsn, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                break
+    except Exception:
+        time.sleep(1)
+else:
+    raise SystemExit("DB not ready")
 PY
-do sleep 1; done
-
-# 스키마 적용(원본은 migrations)
+cd /app
+python manage.py makemigrations --noinput || true
 python manage.py migrate --noinput
-
-# (옵션) 시드 로딩
-# python manage.py loaddata apps/catalog/fixtures/serving_styles.json
-# python manage.py loaddata apps/catalog/fixtures/dinner_types.json
-
-# 앱 실행
+python manage.py runserver 0.0.0.0:8000
