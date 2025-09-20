@@ -25,14 +25,14 @@ def parseToken(token: str) -> dict:
     return jwt.decode(token, _jwt_secret(), algorithms=_jwt_alg())
 
 class JWTAuthentication(BaseAuthentication):
-    keyword = "Bearer"
+    # keyword = "Bearer"
 
     def authenticate(self, request):
-        # 1) Authorization 헤더 우선
-        auth = request.headers.get("Authorization")
+        # # 1) Authorization 헤더 우선
+        # auth = request.headers.get("Authorization")
         token = None
-        if auth and auth.startswith(self.keyword + " "):
-            token = auth.split(" ", 1)[1].strip()
+        # if auth and auth.startswith(self.keyword + " "):
+        #     token = auth.split(" ", 1)[1].strip()
 
         # 2) 없으면 쿠키에서 시도
         if not token:

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Customer
+from django.db import IntegrityError
 
 PHONE_RE = re.compile(r"^010-\d{4}-\d{4}")
 
@@ -26,6 +27,15 @@ class SignupSerializer(serializers.ModelSerializer):
         fields = ("username", "password", "profile_consent", "real_name", "phone", "address")
 
     def validate(self, attrs):
+        username = attrs.get("username").strip()
+
+        if not username:
+            raise serializers.ValidationError({"error": "사용자명을 입력해 주세요."})
+        if Customer.objects.filter(username=username).exists():
+            raise serializers.ValidationError({"error": "이미 사용 중인 닉네임이에요."})
+        
+        attrs["usernmae"] = username
+
         consent = attrs.get("profile_consent", False)
 
         ### 미동의시 파기 ###
@@ -62,15 +72,18 @@ class SignupSerializer(serializers.ModelSerializer):
         addr = validated.pop("address", None)
         addresses = [addr] if (consent and addr) else []
 
-        return Customer.objects.create(
-            username = username,
-            password = sha256_hex(raw_pw),
-            profile_consent = consent,
-            profile_consent_at = timezone.now() if consent else None,
-            real_name = validated.get("real_name"),
-            phone = validated.get("phone"),
-            addresses = addresses,
-        )
+        try:
+            return Customer.objects.create(
+                username = username,
+                password = sha256_hex(raw_pw),
+                profile_consent = consent,
+                profile_consent_at = timezone.now() if consent else None,
+                real_name = validated.get("real_name"),
+                phone = validated.get("phone"),
+                addresses = addresses,
+            )
+        except IntegrityError:
+            raise serializers.ValidationError({"error": "이미 사용중인 닉네임이에요"})
     
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
