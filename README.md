@@ -49,7 +49,7 @@ DB는 PostgreSQL을 기준으로 하며, 시간대 정책은 **애플리케이�
 
 ### 운영 메모
 - 주문 시에는 `orders` 쪽에 **배송 스냅샷**을 별도로 저장.
-- 주소가 3개 이상/이력 관리가 필요해지면 별도 `customer_address` 테이블로 분리 고려. --> 근데 필요 없을듯
+- 주소가 3개 이상/이력 관리가 필요해지면 별도 `customer_address` 테이블로 분리 고려. --> 근데 필요 없을듯 합니다.
 
 ---
 
@@ -76,7 +76,7 @@ DB는 PostgreSQL을 기준으로 하며, 시간대 정책은 **애플리케이�
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `item_id` | BigAutoField (PK) |  |
-| `code` | Char(120) UNIQUE | 안정적 코드 |
+| `code` | Char(120) UNIQUE | 코드 |
 | `name` | Text | 아이템명 |
 | `description` | Text? | 설명 |
 | `category` | FK → MenuCategory ? | 분류 |

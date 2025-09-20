@@ -13,6 +13,14 @@ phone_validator = RegexValidator(
 )
 
 class Customer(models.Model):
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+    
+    @property
+    def is_anonymous(self) -> bool:
+        return False
+
     customer_id = models.BigAutoField(primary_key=True)
     username = models.TextField(unique=True)
     password = models.CharField(max_length=64)

@@ -45,6 +45,18 @@ INSTALLED_APPS = [
     'apps.staff',
 ]
 
+INSTALLED_APPS += ['rest_framework']
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.accounts.auth.JWTAuthentication",
+    ],
+}
+
+JWT_SECRET = SECRET_KEY
+JWT_ALG = "HS256"
+JWT_EXPIRES_MIN = 120  # 2시간
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
