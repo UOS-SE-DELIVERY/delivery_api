@@ -11,7 +11,7 @@ PHONE_RE = re.compile(r"^010-\d{4}-\d{4}")
 def sha256_hex(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
-class SignupSerializer(serializers.ModelSerializer):
+class RegisterSerializer(serializers.ModelSerializer):
     ### 필수 입력 필드 ###
     username = serializers.CharField()
     password = serializers.CharField(write_only=True, min_length=12)

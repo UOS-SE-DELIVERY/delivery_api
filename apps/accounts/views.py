@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .serializers import (
-    SignupSerializer, LoginSerializer, MeSerializer,
+    RegisterSerializer, LoginSerializer, MeSerializer,
     ContactUpdateSerializer, AddressCreateSerializer, SetDefaultAddressSerializer,
     ConsentUpdateSerializer
 )
@@ -25,11 +25,11 @@ def ensureDefaultUnique(addrs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         addrs[0]["is_default"] = True
     return addrs
 
-class SignupView(APIView):
+class RegisterView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        ser = SignupSerializer(data=request.data)
+        ser = RegisterSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         user = ser.save()
 
@@ -141,7 +141,7 @@ class AddressCreateView(APIView):
         return Response({"addresses": user.addresses}, status=201)
 
 class AddressSetDefaultView(APIView):
-    ### 기본 주소 전환(idx 또는 label) ###
+    ### 기본 주소 전환(idx) ###
     permission_classes = [IsAuthenticated]
 
     def patch(self, request):
