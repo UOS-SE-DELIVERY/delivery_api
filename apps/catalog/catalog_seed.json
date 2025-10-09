@@ -2,433 +2,668 @@
   {
     "model": "catalog.servingstyle",
     "pk": 1,
-    "fields": {
-      "code": "simple",
-      "name": "Simple",
-      "price_mode": "multiplier",
-      "price_value": "1.00",
-      "notes": ""
-    }
+    "fields": { "code": "simple", "name": "Simple", "price_mode": "multiplier", "price_value": "1.00", "notes": "" }
   },
   {
     "model": "catalog.servingstyle",
     "pk": 2,
-    "fields": {
-      "code": "grand",
-      "name": "Grand",
-      "price_mode": "multiplier",
-      "price_value": "1.20",
-      "notes": ""
-    }
+    "fields": { "code": "grand", "name": "Grand", "price_mode": "multiplier", "price_value": "1.20", "notes": "" }
   },
   {
     "model": "catalog.servingstyle",
     "pk": 3,
-    "fields": {
-      "code": "deluxe",
-      "name": "Deluxe",
-      "price_mode": "multiplier",
-      "price_value": "1.40",
-      "notes": ""
-    }
+    "fields": { "code": "deluxe", "name": "Deluxe", "price_mode": "multiplier", "price_value": "1.40", "notes": "" }
   },
+
+  {
+    "model": "catalog.menucategory",
+    "pk": 1,
+    "fields": { "parent": null, "name": "Drinks", "slug": "drinks", "rank": 10, "active": true }
+  },
+  {
+    "model": "catalog.menucategory",
+    "pk": 2,
+    "fields": { "parent": null, "name": "Mains", "slug": "mains", "rank": 20, "active": true }
+  },
+  {
+    "model": "catalog.menucategory",
+    "pk": 3,
+    "fields": { "parent": null, "name": "Bread", "slug": "bread", "rank": 30, "active": true }
+  },
+  {
+    "model": "catalog.menucategory",
+    "pk": 4,
+    "fields": { "parent": null, "name": "Coffee & Tea", "slug": "coffee-tea", "rank": 40, "active": true }
+  },
+
   {
     "model": "catalog.menuitem",
     "pk": 1,
-    "fields": {
-      "code": "champagne",
-      "name": "Champagne (Bottle)",
-      "description": "",
-      "category": null,
-      "unit": "병",
-      "base_price_cents": 70000,
-      "active": true,
-      "attrs": {}
-    }
+    "fields": { "code": "champagne", "name": "Champagne (Bottle)", "description": "", "category": 1, "unit": "병", "base_price_cents": 70000, "active": true, "attrs": {} }
   },
   {
     "model": "catalog.menuitem",
     "pk": 2,
-    "fields": {
-      "code": "wine",
-      "name": "Wine (Bottle)",
-      "description": "",
-      "category": null,
-      "unit": "병",
-      "base_price_cents": 50000,
-      "active": true,
-      "attrs": {}
-    }
+    "fields": { "code": "wine", "name": "Wine (Bottle)", "description": "", "category": 1, "unit": "병", "base_price_cents": 50000, "active": true, "attrs": {} }
   },
   {
     "model": "catalog.menuitem",
     "pk": 3,
-    "fields": {
-      "code": "steak",
-      "name": "Steak",
-      "description": "",
-      "category": null,
-      "unit": "인분",
-      "base_price_cents": 30000,
-      "active": true,
-      "attrs": {}
-    }
+    "fields": { "code": "steak", "name": "Steak", "description": "", "category": 2, "unit": "인분", "base_price_cents": 30000, "active": true, "attrs": {} }
   },
   {
     "model": "catalog.menuitem",
     "pk": 4,
-    "fields": {
-      "code": "baguette",
-      "name": "Baguette",
-      "description": "",
-      "category": null,
-      "unit": "개",
-      "base_price_cents": 3000,
-      "active": true,
-      "attrs": {}
-    }
+    "fields": { "code": "baguette", "name": "Baguette", "description": "", "category": 3, "unit": "개", "base_price_cents": 3000, "active": true, "attrs": {} }
   },
   {
     "model": "catalog.menuitem",
     "pk": 5,
-    "fields": {
-      "code": "coffee_pot",
-      "name": "Coffee (Pot)",
-      "description": "",
-      "category": null,
-      "unit": "포트",
-      "base_price_cents": 8000,
-      "active": true,
-      "attrs": {}
-    }
+    "fields": { "code": "coffee_pot", "name": "Coffee (Pot)", "description": "", "category": 4, "unit": "포트", "base_price_cents": 8000, "active": true, "attrs": {} }
   },
+
   {
     "model": "catalog.itemoptiongroup",
     "pk": 1,
-    "fields": {
-      "item": 3,
-      "name": "굽기",
-      "select_mode": "single",
-      "min_select": 1,
-      "max_select": 1,
-      "is_required": true,
-      "is_variant": false,
-      "price_mode": "addon",
-      "rank": 1
-    }
+    "fields": { "item": 3, "name": "굽기", "select_mode": "single", "min_select": 1, "max_select": 1, "is_required": true, "is_variant": false, "price_mode": "addon", "rank": 1 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 1,
-    "fields": {
-      "group": 1,
-      "name": "레어",
-      "price_delta_cents": 0,
-      "multiplier": "1.000",
-      "is_default": false,
-      "rank": 1
-    }
+    "fields": { "group": 1, "name": "레어", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false, "rank": 1 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 2,
-    "fields": {
-      "group": 1,
-      "name": "미디엄",
-      "price_delta_cents": 0,
-      "multiplier": "1.000",
-      "is_default": true,
-      "rank": 2
-    }
+    "fields": { "group": 1, "name": "미디엄", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true, "rank": 2 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 3,
-    "fields": {
-      "group": 1,
-      "name": "웰던",
-      "price_delta_cents": 0,
-      "multiplier": "1.000",
-      "is_default": false,
-      "rank": 3
-    }
+    "fields": { "group": 1, "name": "웰던", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false, "rank": 3 }
   },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 4,
+    "fields": { "item": 3, "name": "사이즈", "select_mode": "single", "min_select": 1, "max_select": 1, "is_required": true, "is_variant": true, "price_mode": "multiplier", "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 9,
+    "fields": { "group": 4, "name": "150g", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 10,
+    "fields": { "group": 4, "name": "250g", "price_delta_cents": 0, "multiplier": "1.500", "is_default": false, "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 11,
+    "fields": { "group": 4, "name": "350g", "price_delta_cents": 0, "multiplier": "2.000", "is_default": false, "rank": 3 }
+  },
+
   {
     "model": "catalog.itemoptiongroup",
     "pk": 2,
-    "fields": {
-      "item": 4,
-      "name": "추가 바게트",
-      "select_mode": "multi",
-      "min_select": 0,
-      "max_select": 4,
-      "is_required": false,
-      "is_variant": false,
-      "price_mode": "addon",
-      "rank": 2
-    }
+    "fields": { "item": 4, "name": "추가 바게트", "select_mode": "multi", "min_select": 0, "max_select": 4, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 2 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 4,
-    "fields": {
-      "group": 2,
-      "name": "+1",
-      "price_delta_cents": 3000,
-      "multiplier": "1.000",
-      "is_default": false,
-      "rank": 1
-    }
+    "fields": { "group": 2, "name": "+1", "price_delta_cents": 3000, "multiplier": "1.000", "is_default": false, "rank": 1 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 5,
-    "fields": {
-      "group": 2,
-      "name": "+2",
-      "price_delta_cents": 6000,
-      "multiplier": "1.000",
-      "is_default": false,
-      "rank": 2
-    }
+    "fields": { "group": 2, "name": "+2", "price_delta_cents": 6000, "multiplier": "1.000", "is_default": false, "rank": 2 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 6,
-    "fields": {
-      "group": 2,
-      "name": "+3",
-      "price_delta_cents": 9000,
-      "multiplier": "1.000",
-      "is_default": false,
-      "rank": 3
-    }
+    "fields": { "group": 2, "name": "+3", "price_delta_cents": 9000, "multiplier": "1.000", "is_default": false, "rank": 3 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 7,
-    "fields": {
-      "group": 2,
-      "name": "+4",
-      "price_delta_cents": 12000,
-      "multiplier": "1.000",
-      "is_default": false,
-      "rank": 4
-    }
+    "fields": { "group": 2, "name": "+4", "price_delta_cents": 12000, "multiplier": "1.000", "is_default": false, "rank": 4 }
   },
+
   {
     "model": "catalog.itemoptiongroup",
     "pk": 3,
-    "fields": {
-      "item": 1,
-      "name": "샴페인 추가 병",
-      "select_mode": "single",
-      "min_select": 0,
-      "max_select": 1,
-      "is_required": false,
-      "is_variant": false,
-      "price_mode": "addon",
-      "rank": 1
-    }
+    "fields": { "item": 1, "name": "샴페인 추가 병", "select_mode": "single", "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 1 }
   },
   {
     "model": "catalog.itemoption",
     "pk": 8,
-    "fields": {
-      "group": 3,
-      "name": "+1병",
-      "price_delta_cents": 70000,
-      "multiplier": "1.000",
-      "is_default": false,
-      "rank": 1
-    }
+    "fields": { "group": 3, "name": "+1병", "price_delta_cents": 70000, "multiplier": "1.000", "is_default": false, "rank": 1 }
   },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 5,
+    "fields": { "item": 5, "name": "사이즈", "select_mode": "single", "min_select": 1, "max_select": 1, "is_required": true, "is_variant": true, "price_mode": "multiplier", "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 12,
+    "fields": { "group": 5, "name": "기본", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 13,
+    "fields": { "group": 5, "name": "라지", "price_delta_cents": 0, "multiplier": "1.500", "is_default": false, "rank": 2 }
+  },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 6,
+    "fields": { "item": 3, "name": "시즈닝", "select_mode": "multi", "min_select": 0, "max_select": 2, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 3 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 14,
+    "fields": { "group": 6, "name": "후추 추가", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 15,
+    "fields": { "group": 6, "name": "갈릭 버터", "price_delta_cents": 2000, "multiplier": "1.000", "is_default": false, "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 16,
+    "fields": { "group": 6, "name": "트러플 소금", "price_delta_cents": 3000, "multiplier": "1.000", "is_default": false, "rank": 3 }
+  },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 7,
+    "fields": { "item": 3, "name": "소스", "select_mode": "single", "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 4 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 17,
+    "fields": { "group": 7, "name": "페퍼 소스", "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 18,
+    "fields": { "group": 7, "name": "머쉬룸 소스", "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false, "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 19,
+    "fields": { "group": 7, "name": "레드와인 소스", "price_delta_cents": 1500, "multiplier": "1.000", "is_default": false, "rank": 3 }
+  },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 8,
+    "fields": { "item": 4, "name": "버터/디핑", "select_mode": "multi", "min_select": 0, "max_select": 2, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 3 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 20,
+    "fields": { "group": 8, "name": "가염 버터", "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 21,
+    "fields": { "group": 8, "name": "갈릭 허브버터", "price_delta_cents": 1500, "multiplier": "1.000", "is_default": false, "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 22,
+    "fields": { "group": 8, "name": "올리브오일&발사믹", "price_delta_cents": 1500, "multiplier": "1.000", "is_default": false, "rank": 3 }
+  },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 9,
+    "fields": { "item": 5, "name": "샷 추가", "select_mode": "multi", "min_select": 0, "max_select": 3, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 23,
+    "fields": { "group": 9, "name": "+1샷", "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 24,
+    "fields": { "group": 9, "name": "+2샷", "price_delta_cents": 2000, "multiplier": "1.000", "is_default": false, "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 25,
+    "fields": { "group": 9, "name": "+3샷", "price_delta_cents": 3000, "multiplier": "1.000", "is_default": false, "rank": 3 }
+  },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 10,
+    "fields": { "item": 5, "name": "원두 선택", "select_mode": "single", "min_select": 1, "max_select": 1, "is_required": true, "is_variant": false, "price_mode": "addon", "rank": 3 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 26,
+    "fields": { "group": 10, "name": "라이트 로스트", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 27,
+    "fields": { "group": 10, "name": "미디엄 로스트", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true, "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 28,
+    "fields": { "group": 10, "name": "다크 로스트", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false, "rank": 3 }
+  },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 11,
+    "fields": { "item": 2, "name": "서빙", "select_mode": "single", "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 29,
+    "fields": { "group": 11, "name": "상온", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 30,
+    "fields": { "group": 11, "name": "차갑게", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false, "rank": 2 }
+  },
+
+  {
+    "model": "catalog.itemoptiongroup",
+    "pk": 12,
+    "fields": { "item": 1, "name": "서빙", "select_mode": "single", "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon", "rank": 2 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 31,
+    "fields": { "group": 12, "name": "아이스버킷", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true, "rank": 1 }
+  },
+  {
+    "model": "catalog.itemoption",
+    "pk": 32,
+    "fields": { "group": 12, "name": "잔에 서빙", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false, "rank": 2 }
+  },
+
   {
     "model": "catalog.dinnertype",
     "pk": 1,
-    "fields": {
-      "code": "valentine",
-      "name": "Valentine Dinner",
-      "description": "특별한 날을 위한 2인 코스",
-      "base_price_cents": 150000,
-      "active": true
-    }
+    "fields": { "code": "valentine", "name": "Valentine Dinner", "description": "특별한 날을 위한 2인 코스", "base_price_cents": 150000, "active": true }
   },
   {
     "model": "catalog.dinnertype",
     "pk": 2,
-    "fields": {
-      "code": "french",
-      "name": "French Dinner",
-      "description": "클래식 프렌치 코스",
-      "base_price_cents": 160000,
-      "active": true
-    }
+    "fields": { "code": "french", "name": "French Dinner", "description": "클래식 프렌치 코스", "base_price_cents": 160000, "active": true }
   },
   {
     "model": "catalog.dinnertype",
     "pk": 3,
-    "fields": {
-      "code": "english",
-      "name": "English Dinner",
-      "description": "브리티시 스타일 코스",
-      "base_price_cents": 140000,
-      "active": true
-    }
+    "fields": { "code": "english", "name": "English Dinner", "description": "브리티시 스타일 코스", "base_price_cents": 140000, "active": true }
   },
   {
     "model": "catalog.dinnertype",
     "pk": 4,
-    "fields": {
-      "code": "champagne_feast",
-      "name": "Champagne Feast",
-      "description": "샴페인 중심 디너",
-      "base_price_cents": 180000,
-      "active": true
-    }
+    "fields": { "code": "champagne_feast", "name": "Champagne Feast", "description": "최고급 디너", "base_price_cents": 180000, "active": true }
   },
+
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 1,
-    "fields": {
-      "dinner_type": 4,
-      "item": 1,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 4, "item": 1, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 2,
-    "fields": {
-      "dinner_type": 4,
-      "item": 4,
-      "quantity": 4
-    }
+    "fields": { "dinner_type": 4, "item": 4, "default_qty": "4", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 3,
-    "fields": {
-      "dinner_type": 4,
-      "item": 5,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 4, "item": 5, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 4,
-    "fields": {
-      "dinner_type": 4,
-      "item": 2,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 4, "item": 2, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 5,
-    "fields": {
-      "dinner_type": 4,
-      "item": 3,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 4, "item": 3, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
+
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 6,
-    "fields": {
-      "dinner_type": 1,
-      "item": 2,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 1, "item": 2, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 7,
-    "fields": {
-      "dinner_type": 1,
-      "item": 3,
-      "quantity": 2
-    }
+    "fields": { "dinner_type": 1, "item": 3, "default_qty": "2", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 8,
-    "fields": {
-      "dinner_type": 1,
-      "item": 4,
-      "quantity": 2
-    }
+    "fields": { "dinner_type": 1, "item": 4, "default_qty": "2", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 9,
-    "fields": {
-      "dinner_type": 1,
-      "item": 5,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 1, "item": 5, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
+
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 10,
-    "fields": {
-      "dinner_type": 2,
-      "item": 2,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 2, "item": 2, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 11,
-    "fields": {
-      "dinner_type": 2,
-      "item": 3,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 2, "item": 3, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 12,
-    "fields": {
-      "dinner_type": 2,
-      "item": 4,
-      "quantity": 3
-    }
+    "fields": { "dinner_type": 2, "item": 4, "default_qty": "3", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 13,
-    "fields": {
-      "dinner_type": 2,
-      "item": 5,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 2, "item": 5, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
+
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 14,
-    "fields": {
-      "dinner_type": 3,
-      "item": 3,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 3, "item": 3, "default_qty": "1", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 15,
-    "fields": {
-      "dinner_type": 3,
-      "item": 4,
-      "quantity": 4
-    }
+    "fields": { "dinner_type": 3, "item": 4, "default_qty": "4", "included_in_base": true, "notes": "" }
   },
   {
     "model": "catalog.dinnertypedefaultitem",
     "pk": 16,
-    "fields": {
-      "dinner_type": 3,
-      "item": 5,
-      "quantity": 1
-    }
+    "fields": { "dinner_type": 3, "item": 5, "default_qty": "1", "included_in_base": true, "notes": "" }
+  },
+
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 1,
+    "fields": { "dinner_type": 1, "style": 1 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 2,
+    "fields": { "dinner_type": 1, "style": 2 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 3,
+    "fields": { "dinner_type": 1, "style": 3 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 4,
+    "fields": { "dinner_type": 2, "style": 1 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 5,
+    "fields": { "dinner_type": 2, "style": 2 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 6,
+    "fields": { "dinner_type": 2, "style": 3 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 7,
+    "fields": { "dinner_type": 3, "style": 1 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 8,
+    "fields": { "dinner_type": 3, "style": 2 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 9,
+    "fields": { "dinner_type": 3, "style": 3 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 10,
+    "fields": { "dinner_type": 4, "style": 1 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 11,
+    "fields": { "dinner_type": 4, "style": 2 }
+  },
+  {
+    "model": "catalog.dinnerstyleallowed",
+    "pk": 12,
+    "fields": { "dinner_type": 4, "style": 3 }
+  },
+
+  {
+    "model": "catalog.dinneroptiongroup",
+    "pk": 1,
+    "fields": { "dinner_type": 1, "name": "Beverage Upgrade", "select_mode": "multi", "min_select": 0, "max_select": 2, "is_required": false, "price_mode": "addon", "rank": 10 }
+  },
+  {
+    "model": "catalog.dinneroptiongroup",
+    "pk": 2,
+    "fields": { "dinner_type": 1, "name": "Dessert Upgrade", "select_mode": "single", "min_select": 0, "max_select": 1, "is_required": false, "price_mode": "addon", "rank": 20 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 1,
+    "fields": { "group": 1, "item": 2, "name": null, "price_delta_cents": 50000, "multiplier": null, "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 2,
+    "fields": { "group": 1, "item": 1, "name": null, "price_delta_cents": 70000, "multiplier": null, "is_default": false, "rank": 2 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 3,
+    "fields": { "group": 2, "item": null, "name": "Cheese Plate", "price_delta_cents": 15000, "multiplier": null, "is_default": false, "rank": 1 }
+  },
+
+  {
+    "model": "catalog.dinneroptiongroup",
+    "pk": 3,
+    "fields": { "dinner_type": 2, "name": "Beverage Upgrade", "select_mode": "multi", "min_select": 0, "max_select": 2, "is_required": false, "price_mode": "addon", "rank": 10 }
+  },
+  {
+    "model": "catalog.dinneroptiongroup",
+    "pk": 4,
+    "fields": { "dinner_type": 3, "name": "Beverage Upgrade", "select_mode": "multi", "min_select": 0, "max_select": 2, "is_required": false, "price_mode": "addon", "rank": 10 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 4,
+    "fields": { "group": 3, "item": 2, "name": null, "price_delta_cents": 50000, "multiplier": null, "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 5,
+    "fields": { "group": 3, "item": 1, "name": null, "price_delta_cents": 70000, "multiplier": null, "is_default": false, "rank": 2 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 6,
+    "fields": { "group": 4, "item": 2, "name": null, "price_delta_cents": 50000, "multiplier": null, "is_default": false, "rank": 1 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 7,
+    "fields": { "group": 4, "item": 1, "name": null, "price_delta_cents": 70000, "multiplier": null, "is_default": false, "rank": 2 }
+  },
+
+  {
+    "model": "catalog.dinneroptiongroup",
+    "pk": 5,
+    "fields": { "dinner_type": 4, "name": "Champagne Extras", "select_mode": "multi", "min_select": 0, "max_select": 3, "is_required": false, "price_mode": "addon", "rank": 10 }
+  },
+  {
+    "model": "catalog.dinneroption",
+    "pk": 8,
+    "fields": { "group": 5, "item": 1, "name": null, "price_delta_cents": 70000, "multiplier": null, "is_default": false, "rank": 1 }
+  },
+
+  {
+    "model": "catalog.itemtag",
+    "pk": 1,
+    "fields": { "name": "alcohol" }
+  },
+  {
+    "model": "catalog.itemtag",
+    "pk": 2,
+    "fields": { "name": "sparkling" }
+  },
+  {
+    "model": "catalog.itemtag",
+    "pk": 3,
+    "fields": { "name": "wine" }
+  },
+  {
+    "model": "catalog.itemtag",
+    "pk": 4,
+    "fields": { "name": "meat" }
+  },
+  {
+    "model": "catalog.itemtag",
+    "pk": 5,
+    "fields": { "name": "bread" }
+  },
+  {
+    "model": "catalog.itemtag",
+    "pk": 6,
+    "fields": { "name": "caffeine" }
+  },
+
+  {
+    "model": "catalog.itemtagmap",
+    "pk": 1,
+    "fields": { "item": 1, "tag": 1 }
+  },
+  {
+    "model": "catalog.itemtagmap",
+    "pk": 2,
+    "fields": { "item": 1, "tag": 2 }
+  },
+  {
+    "model": "catalog.itemtagmap",
+    "pk": 3,
+    "fields": { "item": 2, "tag": 1 }
+  },
+  {
+    "model": "catalog.itemtagmap",
+    "pk": 4,
+    "fields": { "item": 2, "tag": 3 }
+  },
+  {
+    "model": "catalog.itemtagmap",
+    "pk": 5,
+    "fields": { "item": 3, "tag": 4 }
+  },
+  {
+    "model": "catalog.itemtagmap",
+    "pk": 6,
+    "fields": { "item": 4, "tag": 5 }
+  },
+  {
+    "model": "catalog.itemtagmap",
+    "pk": 7,
+    "fields": { "item": 5, "tag": 6 }
+  },
+
+  {
+    "model": "catalog.itemavailability",
+    "pk": 1,
+    "fields": { "item": 1, "dow": 0, "start_time": "10:00:00", "end_time": "22:00:00", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 2,
+    "fields": { "item": 1, "dow": 1, "start_time": "10:00:00", "end_time": "22:00:00", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 3,
+    "fields": { "item": 1, "dow": 2, "start_time": "10:00:00", "end_time": "22:00:00", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 4,
+    "fields": { "item": 1, "dow": 3, "start_time": "10:00:00", "end_time": "22:00:00", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 5,
+    "fields": { "item": 1, "dow": 4, "start_time": "10:00:00", "end_time": "22:00:00", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 6,
+    "fields": { "item": 1, "dow": 5, "start_time": "10:00:00", "end_time": "23:00:00", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 7,
+    "fields": { "item": 1, "dow": 6, "start_time": "10:00:00", "end_time": "23:00:00", "start_date": null, "end_date": null }
+  },
+
+  {
+    "model": "catalog.itemavailability",
+    "pk": 8,
+    "fields": { "item": 5, "dow": 0, "start_time": "08:00:00", "end_time": "23:59:59", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 9,
+    "fields": { "item": 5, "dow": 1, "start_time": "08:00:00", "end_time": "23:59:59", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 10,
+    "fields": { "item": 5, "dow": 2, "start_time": "08:00:00", "end_time": "23:59:59", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 11,
+    "fields": { "item": 5, "dow": 3, "start_time": "08:00:00", "end_time": "23:59:59", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 12,
+    "fields": { "item": 5, "dow": 4, "start_time": "08:00:00", "end_time": "23:59:59", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 13,
+    "fields": { "item": 5, "dow": 5, "start_time": "08:00:00", "end_time": "23:59:59", "start_date": null, "end_date": null }
+  },
+  {
+    "model": "catalog.itemavailability",
+    "pk": 14,
+    "fields": { "item": 5, "dow": 6, "start_time": "08:00:00", "end_time": "23:59:59", "start_date": null, "end_date": null }
   }
 ]

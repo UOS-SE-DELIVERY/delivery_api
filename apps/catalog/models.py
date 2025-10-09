@@ -33,9 +33,9 @@ class MenuItem(models.Model):
     name = models.TextField()
     description = models.TextField(null=True, blank=True)
     category = models.ForeignKey(MenuCategory, null=True, blank=True, on_delete=models.SET_NULL)
-    unit = models.CharField(max_length=50, null=True, blank=True)  # "인분", "병", "잔" 등
-    base_price_cents = models.PositiveIntegerField()
-    active = models.BooleanField(default=True)
+    unit = models.CharField(max_length=50, null=True, blank=True)  # "인분", "병", "잔" 등 단위
+    base_price_cents = models.PositiveIntegerField() # 기본가(원화)
+    active = models.BooleanField(default=True) # 품절여부
     attrs = models.JSONField(default=dict, blank=True)  # 알러지/원산지 등
 
     tags = models.ManyToManyField(ItemTag, through="ItemTagMap", blank=True)
@@ -69,9 +69,9 @@ class ItemOptionGroup(models.Model):
     name = models.TextField()
     select_mode = models.CharField(max_length=10, choices=OptionSelectMode.choices)
     min_select = models.PositiveIntegerField(default=0)
-    max_select = models.IntegerField(null=True, blank=True)  # NULL = 제한 없음
+    max_select = models.IntegerField(null=True, blank=True) # NULL = 제한 없음
     is_required = models.BooleanField(default=False)
-    is_variant = models.BooleanField(default=False)          # true면 사이즈/용량 같은 "실변형"
+    is_variant = models.BooleanField(default=False) # true면 사이즈/용량 같은 "실변형"
     price_mode = models.CharField(max_length=12, choices=PriceMode.choices, default=PriceMode.ADDON)
     rank = models.IntegerField(default=1000)
 

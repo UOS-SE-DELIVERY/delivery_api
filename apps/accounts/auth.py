@@ -5,9 +5,18 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
 from .models import Customer
 
-def _jwt_secret(): return getattr(settings, "JWT_SECRET", settings.SECRET_KEY)
-def _jwt_alg(): return getattr(settings, "JWT_ALG", "HS256")
-def _jwt_expires_min(): return int(getattr(settings, "JWT_EXPIRES_MIN", 120))
+# 쿠키 이름(로그인/로그아웃 뷰와 반드시 동일)
+COOKIE_NAME = getattr(settings, "JWT_COOKIE_NAME", "access")
+
+def _jwt_secret() -> str:
+    return getattr(settings, "JWT_SECRET", settings.SECRET_KEY)
+
+def _jwt_alg() -> str:
+    return getattr(settings, "JWT_ALG", "HS256")
+
+def _jwt_expires_min() -> int:
+    # 기본 7일 = 10080분 (로그인 쿠키 max_age와 일치시키는 걸 권장)
+    return int(getattr(settings, "JWT_EXPIRES_MIN", 60 * 24 * 7))
 
 def createAccessToken(user: Customer) -> str:
     now = timezone.now()
@@ -16,30 +25,17 @@ def createAccessToken(user: Customer) -> str:
         "username": user.username,
         "iat": int(now.timestamp()),
         "exp": int((now + datetime.timedelta(minutes=_jwt_expires_min())).timestamp()),
-        "typ": "access"
     }
-
     return jwt.encode(payload, _jwt_secret(), algorithm=_jwt_alg())
 
 def parseToken(token: str) -> dict:
-    return jwt.decode(token, _jwt_secret(), algorithms=_jwt_alg())
+    return jwt.decode(token, _jwt_secret(), algorithms=[_jwt_alg()])
 
 class JWTAuthentication(BaseAuthentication):
-    # keyword = "Bearer"
-
     def authenticate(self, request):
-        # # 1) Authorization 헤더 우선
-        # auth = request.headers.get("Authorization")
-        token = None
-        # if auth and auth.startswith(self.keyword + " "):
-        #     token = auth.split(" ", 1)[1].strip()
-
-        # 2) 없으면 쿠키에서 시도
+        token = request.COOKIES.get(COOKIE_NAME)
         if not token:
-            token = request.COOKIES.get("token")
-
-        if not token:
-            return None
+            return None  # 익명 허용
 
         try:
             data = jwt.decode(token, _jwt_secret(), algorithms=[_jwt_alg()])
@@ -48,8 +44,12 @@ class JWTAuthentication(BaseAuthentication):
         except jwt.InvalidTokenError:
             raise exceptions.AuthenticationFailed("유효하지 않은 토큰입니다.")
 
+        sub = data.get("sub")
+        if not sub:
+            raise exceptions.AuthenticationFailed("유효하지 않은 토큰입니다.")
+
         try:
-            user = Customer.objects.get(pk=data.get("sub"))
+            user = Customer.objects.get(pk=sub)
         except Customer.DoesNotExist:
             raise exceptions.AuthenticationFailed("사용자를 찾을 수 없습니다.")
 
