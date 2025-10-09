@@ -46,11 +46,19 @@ INSTALLED_APPS = [
 ]
 
 INSTALLED_APPS += ['rest_framework']
+INSTALLED_APPS += ['drf_spectacular']
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Mr.DaBak API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "apps.accounts.auth.JWTAuthentication",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 JWT_SECRET = SECRET_KEY

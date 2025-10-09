@@ -1,6 +1,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List
 
+from django.shortcuts import get_object_or_404
 from django.db.models import Prefetch, Q
 from django.http import Http404
 from rest_framework import generics, status
@@ -88,23 +89,16 @@ class ItemDetailAPIView(APIView):
     """
     GET /api/catalog/items/{code}
     """
-    def get_object(self, code: str) -> MenuItem:
-        try:
-            return MenuItem.objects.select_related("category").get(code=code)
-        except MenuItem.DoesNotExist:
-            raise Http404
+    # permission_classes = [AllowAny]
 
     def get(self, request, code: str):
-        item = self.get_object(code)
-        groups = (ItemOptionGroup.objects
-                  .filter(item=item)
-                  .order_by("rank", "name")
-                  .prefetch_related(Prefetch("options", queryset=ItemOption.objects.order_by("rank", "option_id"))))
-        payload = {
-            "item": MenuItemSummarySerializer(item).data,
-            "option_groups": ItemOptionGroupSerializer(groups, many=True).data
-        }
-        return Response(MenuItemDetailSerializer(payload).data)
+        item = get_object_or_404(
+            MenuItem.objects
+                .select_related("category")
+                .prefetch_related("option_groups__options"),
+            code=code, active=True
+        )
+        return Response(MenuItemDetailSerializer(item).data, status=200)
 
 
 class ItemAvailabilityAPIView(generics.ListAPIView):
@@ -152,9 +146,11 @@ class DinnerDetailAPIView(generics.RetrieveAPIView):
     """
     GET /api/catalog/dinners/{dinner_code}
     """
+    queryset = DinnerType.objects.filter(active=True)
     serializer_class = DinnerTypeSerializer
     lookup_field = "code"
-    queryset = DinnerType.objects.all()
+    lookup_url_kwarg = "dinner_code"
+    # queryset = DinnerType.objects.all()
 
 
 class DinnerDefaultItemsAPIView(generics.ListAPIView):

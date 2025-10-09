@@ -1,3 +1,4 @@
+from __future__ import annotations
 from decimal import Decimal
 from django.core.validators import MinValueValidator
 from rest_framework import serializers
@@ -11,15 +12,22 @@ from .models import (
 # ---------- Category ----------
 
 class MenuCategorySerializer(serializers.ModelSerializer):
-    parent_id = serializers.IntegerField(source="parent_id", read_only=True, allow_null=True)
+    parent_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = MenuCategory
         fields = ("category_id", "parent_id", "name", "slug", "rank", "active")
-
+        # # 쓰기 필요시
+        # parent_id = serializers.PrimaryKeyRelatedField(
+        #     source="parent", queryset=MenuCategory.objects.all(),
+        #     allow_null=True, required=False
+        # )
 
 class MenuCategoryTreeSerializer(MenuCategorySerializer):
     children = serializers.SerializerMethodField()
+
+    class Meta(MenuCategorySerializer.Meta):
+        fields = MenuCategorySerializer.Meta.fields + ("children",)
 
     def get_children(self, obj):
         # related_name="children"
@@ -72,9 +80,16 @@ class ItemOptionGroupSerializer(serializers.ModelSerializer):
         )
 
 
-class MenuItemDetailSerializer(serializers.Serializer):
-    item = MenuItemSummarySerializer()
-    option_groups = ItemOptionGroupSerializer(many=True)
+class MenuItemDetailSerializer(serializers.ModelSerializer):
+    category = CategoryRefSerializer(read_only=True)
+    option_groups = ItemOptionGroupSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = MenuItem
+        fields = (
+            "item_id", "code", "name", "description", "category",
+            "unit", "base_price_cents", "active", "attrs", "option_groups",
+        )
 
 
 # ---------- Serving Style / Dinner ----------
@@ -133,15 +148,22 @@ class ItemAvailabilitySerializer(serializers.ModelSerializer):
 
 class PreviewItemSelectionSerializer(serializers.Serializer):
     code = serializers.CharField()
-    qty = serializers.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    qty = serializers.DecimalField(
+        max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))]
+    )
     options = serializers.ListField(
-        child=serializers.IntegerField(min_value=1), required=False, allow_empty=True, default=list
+        child=serializers.IntegerField(min_value=1),
+        required=False, allow_empty=True, default=list
     )
 
 
 class PreviewDinnerSerializer(serializers.Serializer):
     code = serializers.CharField()
-    quantity = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=Decimal("1"))
+    quantity = serializers.DecimalField(
+        max_digits=10, decimal_places=2,
+        required=False, default=Decimal("1")
+    )
     style = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
 

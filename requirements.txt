@@ -4,3 +4,4 @@ python-dotenv>=1.0
 djangorestframework
 PyJWT
 django-cors-headers
+drf-spectacular>=0.27
