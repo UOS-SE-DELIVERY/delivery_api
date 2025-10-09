@@ -1,0 +1,803 @@
+openapi: 3.0.3
+info:
+  title: Mr.DaBak Dinner Service API
+  version: "1.0.0"
+  description: |
+    Cookie 기반 JWT(`access`) 인증. 모든 금액 단위는 KRW **cents**(정수).
+servers:
+  - url: http://localhost:8000
+    description: dev
+tags:
+  - name: Auth
+  - name: Catalog
+  - name: Orders
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access
+  schemas:
+
+    # ---------- Common ----------
+    Problem:
+      type: object
+      properties:
+        detail: {type: string}
+    Address:
+      type: object
+      required: [line, is_default]
+      properties:
+        label: {type: string, example: 집}
+        line:  {type: string, example: 서울시 어딘가 123}
+        lat:   {type: number, format: float, nullable: true, example: 37.5665}
+        lng:   {type: number, format: float, nullable: true, example: 126.9780}
+        is_default: {type: boolean, example: true}
+
+    # ---------- Auth ----------
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: {type: string, example: tester_1234}
+        password: {type: string, minLength: 12, example: Aa1!verystrong_1234}
+        profile_consent: {type: boolean, default: false}
+        real_name: {type: string, nullable: true}
+        phone:
+          type: string
+          nullable: true
+          description: "010-0000-0000"
+          example: "010-1234-5678"
+        address:
+          $ref: "#/components/schemas/Address"
+    RegisterResponse:
+      type: object
+      properties:
+        message: {type: string, example: ok}
+        customer_id: {type: integer, example: 1}
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: {type: string}
+        password: {type: string}
+    LoginResponse:
+      type: object
+      description: "응답 바디에도 access 토큰을 싣지만, **인증은 쿠키(access)** 로 처리"
+      properties:
+        access: {type: string}
+
+    Me:
+      type: object
+      properties:
+        customer_id: {type: integer}
+        username: {type: string}
+        real_name: {type: string, nullable: true}
+        phone: {type: string, nullable: true}
+        addresses:
+          type: array
+          items: {$ref: "#/components/schemas/Address"}
+        loyalty_tier: {type: string, enum: [none, silver, gold], example: none}
+        profile_consent: {type: boolean}
+        profile_consent_at: {type: string, format: date-time, nullable: true}
+
+    ContactUpdate:
+      type: object
+      properties:
+        real_name: {type: string, nullable: true}
+        phone:
+          type: string
+          nullable: true
+          example: "010-1234-5678"
+
+    ConsentUpdate:
+      type: object
+      required: [profile_consent]
+      properties:
+        profile_consent: {type: boolean}
+
+    PasswordChange:
+      type: object
+      required: [old_password, new_password]
+      properties:
+        old_password: {type: string}
+        new_password: {type: string, minLength: 12}
+
+    # ---------- Catalog ----------
+    MenuCategory:
+      type: object
+      properties:
+        category_id: {type: integer}
+        name: {type: string}
+        slug: {type: string}
+        rank: {type: integer}
+        active: {type: boolean}
+    ItemTag:
+      type: object
+      properties:
+        tag_id: {type: integer}
+        name: {type: string}
+    ServingStyle:
+      type: object
+      properties:
+        style_id: {type: integer}
+        code: {type: string, example: simple}
+        name: {type: string}
+        price_mode: {type: string, enum: [addon, multiplier]}
+        price_value: {type: number, format: float}
+        notes: {type: string, nullable: true}
+    DinnerType:
+      type: object
+      properties:
+        dinner_type_id: {type: integer}
+        code: {type: string, example: valentine}
+        name: {type: string}
+        description: {type: string, nullable: true}
+        base_price_cents: {type: integer}
+        active: {type: boolean}
+    DinnerDefaultItem:
+      type: object
+      properties:
+        item_id: {type: integer}
+        code: {type: string}
+        name: {type: string}
+        default_qty: {type: string}
+        included_in_base: {type: boolean}
+    ItemOption:
+      type: object
+      properties:
+        option_id: {type: integer}
+        name: {type: string}
+        price_delta_cents: {type: integer}
+        multiplier: {type: number, format: float, nullable: true}
+        is_default: {type: boolean}
+        rank: {type: integer}
+    ItemOptionGroup:
+      type: object
+      properties:
+        group_id: {type: integer}
+        name: {type: string}
+        select_mode: {type: string, enum: [single, multi]}
+        min_select: {type: integer}
+        max_select: {type: integer, nullable: true}
+        is_required: {type: boolean}
+        is_variant: {type: boolean}
+        price_mode: {type: string, enum: [addon, multiplier]}
+        rank: {type: integer}
+        options:
+          type: array
+          items: {$ref: "#/components/schemas/ItemOption"}
+    MenuItemDetail:
+      type: object
+      properties:
+        item_id: {type: integer}
+        code: {type: string}
+        name: {type: string}
+        description: {type: string, nullable: true}
+        unit: {type: string, nullable: true}
+        base_price_cents: {type: integer}
+        active: {type: boolean}
+        attrs: {type: object}
+        option_groups:
+          type: array
+          items: {$ref: "#/components/schemas/ItemOptionGroup"}
+    ItemAvailability:
+      type: object
+      properties:
+        dow: {type: integer, description: "0=일 … 6=토"}
+        start_time: {type: string, example: "10:00:00"}
+        end_time: {type: string, example: "22:00:00"}
+        start_date: {type: string, format: date, nullable: true}
+        end_date: {type: string, format: date, nullable: true}
+
+    PricePreviewRequest:
+      type: object
+      properties:
+        dinners:
+          type: array
+          items:
+            type: object
+            required: [dinner_code, style_code, quantity]
+            properties:
+              dinner_code: {type: string, example: valentine}
+              style_code:  {type: string, example: grand}
+              quantity:    {type: string, example: "1"}
+              item_overrides:
+                description: "기본 구성의 증감. code와 delta_qty(+/-) 또는 final_qty."
+                type: array
+                items:
+                  type: object
+                  required: [item_code]
+                  properties:
+                    item_code: {type: string, example: baguette}
+                    delta_qty: {type: string, nullable: true, example: "1"}
+                    final_qty: {type: string, nullable: true}
+              item_options:
+                description: "아이템 옵션 선택"
+                type: array
+                items:
+                  type: object
+                  properties:
+                    item_code: {type: string, example: steak}
+                    group_name: {type: string, example: 굽기}
+                    option_names:
+                      type: array
+                      items: {type: string}
+              dinner_options:
+                description: "디너 옵션(코스 레벨)"
+                type: array
+                items:
+                  type: object
+                  properties:
+                    group_name: {type: string, example: Beverage Upgrade}
+                    option_item_code: {type: string, nullable: true, example: champagne}
+                    option_name: {type: string, nullable: true}
+        currency: {type: string, example: KRW}
+    PricePreviewResponse:
+      type: object
+      properties:
+        subtotal_cents: {type: integer}
+        discount_cents: {type: integer}
+        total_cents: {type: integer}
+        breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              label: {type: string}
+              amount_cents: {type: integer}
+
+    # ---------- Orders ----------
+    OrderStatus:
+      type: string
+      enum: [pending, preparing, out_for_delivery, delivered, canceled]
+    OrderSource:
+      type: string
+      enum: [GUI, VOICE]
+    OrderCreate:
+      type: object
+      required: [receiver_name, receiver_phone, delivery_address, dinners]
+      properties:
+        receiver_name: {type: string, example: 홍길동}
+        receiver_phone: {type: string, example: "010-1234-5678"}
+        delivery_address: {type: string}
+        geo_lat: {type: number, format: float, nullable: true}
+        geo_lng: {type: number, format: float, nullable: true}
+        place_label: {type: string, nullable: true}
+        address_meta: {type: object, nullable: true}
+        payment_token: {type: string, nullable: true}
+        meta: {type: object, nullable: true}
+        dinners:
+          type: array
+          items:
+            type: object
+            required: [dinner_type_id, style_id, quantity]
+            properties:
+              dinner_type_id: {type: integer, example: 1}
+              style_id: {type: integer, example: 2}
+              person_label: {type: string, nullable: true}
+              quantity: {type: string, example: "1"}
+              notes: {type: string, nullable: true}
+              items:
+                description: "아이템 커스터마이즈(선택). code 또는 item_id 기반"
+                type: array
+                items:
+                  type: object
+                  properties:
+                    item_code: {type: string, nullable: true}
+                    item_id: {type: integer, nullable: true}
+                    final_qty: {type: string}
+                    options:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          option_group_name: {type: string}
+                          option_name: {type: string}
+                          price_delta_cents: {type: integer, nullable: true}
+                          multiplier: {type: number, format: float, nullable: true}
+              dinner_options:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    option_group_name: {type: string}
+                    option_name: {type: string}
+                    price_delta_cents: {type: integer, nullable: true}
+                    multiplier: {type: number, format: float, nullable: true}
+    Order:
+      type: object
+      properties:
+        id: {type: integer}
+        status: {$ref: "#/components/schemas/OrderStatus"}
+        order_source: {$ref: "#/components/schemas/OrderSource"}
+        ordered_at: {type: string, format: date-time}
+        receiver_name: {type: string, nullable: true}
+        receiver_phone: {type: string, nullable: true}
+        delivery_address: {type: string, nullable: true}
+        subtotal_cents: {type: integer}
+        discount_cents: {type: integer}
+        total_cents: {type: integer}
+        dinners:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: integer}
+              dinner_type_id: {type: integer}
+              style_id: {type: integer}
+              quantity: {type: string}
+              base_price_cents: {type: integer}
+              style_adjust_cents: {type: integer}
+              items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: integer}
+                    item_id: {type: integer}
+                    final_qty: {type: string}
+                    unit_price_cents: {type: integer}
+                    is_default: {type: boolean}
+                    change_type:
+                      type: string
+                      enum: [unchanged, added, removed, increased, decreased]
+                    options:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          option_group_name: {type: string}
+                          option_name: {type: string}
+                          price_delta_cents: {type: integer, nullable: true}
+                          multiplier: {type: number, format: float, nullable: true}
+
+security:
+  - cookieAuth: []
+
+paths:
+
+  # ---------- Auth ----------
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterRequest"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RegisterResponse"}
+        "400": {description: Bad Request, content: {application/json: {schema: {$ref: "#/components/schemas/Problem"}}}}
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+            examples:
+              ok:
+                value: {username: demo, password: Aa1!verystrong_1234}
+      responses:
+        "200":
+          description: OK (Set-Cookie: access=...)
+          headers:
+            Set-Cookie:
+              schema: {type: string}
+              description: "HttpOnly; SameSite=Lax; Path=/; Max-Age=604800"
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoginResponse"}
+        "400": {description: Invalid credentials}
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      responses:
+        "204": {description: No Content}
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/Me"}}}
+        "401": {description: Unauthorized}
+
+  /api/auth/contact:
+    patch:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/ContactUpdate"}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Me"}}}}
+        "403": {description: Consent required}
+
+  /api/auth/profile-consent:
+    patch:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/ConsentUpdate"}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Me"}}}}
+
+  /api/auth/password:
+    patch:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/PasswordChange"}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {type: object, properties: {detail: {type: string}}}}}}
+        "400": {description: Bad Request}
+
+  /api/auth/addresses:
+    get:
+      tags: [Auth]
+      summary: list addresses
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  addresses:
+                    type: array
+                    items: {$ref: "#/components/schemas/Address"}
+    post:
+      tags: [Auth]
+      summary: create address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/Address"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  addresses:
+                    type: array
+                    items: {$ref: "#/components/schemas/Address"}
+
+  /api/auth/addresses/{idx}:
+    patch:
+      tags: [Auth]
+      parameters:
+        - in: path
+          name: idx
+          required: true
+          schema: {type: integer, minimum: 0}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: {type: string}
+                line: {type: string}
+                lat: {type: number, format: float, nullable: true}
+                lng: {type: number, format: float, nullable: true}
+                is_default: {type: boolean}
+      responses:
+        "200": {description: OK}
+    delete:
+      tags: [Auth]
+      parameters:
+        - in: path
+          name: idx
+          required: true
+          schema: {type: integer, minimum: 0}
+      responses:
+        "200": {description: OK}
+
+  /api/auth/addresses/default:
+    patch:
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idx]
+              properties:
+                idx: {type: integer, minimum: 0}
+      responses:
+        "200": {description: OK}
+
+  # ---------- Catalog ----------
+  /api/catalog/categories:
+    get:
+      tags: [Catalog]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/MenuCategory"}
+
+  /api/catalog/tags:
+    get:
+      tags: [Catalog]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/ItemTag"}
+
+  /api/catalog/items:
+    get:
+      tags: [Catalog]
+      responses:
+        "200":
+          description: OK (간략 목록)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id: {type: integer}
+                        code: {type: string}
+                        name: {type: string}
+
+  /api/catalog/items/{code}:
+    get:
+      tags: [Catalog]
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MenuItemDetail"}
+        "404": {description: Not Found}
+
+  /api/catalog/items/{code}/availability:
+    get:
+      tags: [Catalog]
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/ItemAvailability"}
+
+  /api/catalog/dinners:
+    get:
+      tags: [Catalog]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/DinnerType"}
+
+  /api/catalog/dinners/{dinner_code}:
+    get:
+      tags: [Catalog]
+      parameters:
+        - in: path
+          name: dinner_code
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK (기본 정보)
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DinnerType"}
+
+  /api/catalog/dinners/{dinner_code}/default-items:
+    get:
+      tags: [Catalog]
+      parameters:
+        - in: path
+          name: dinner_code
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/DinnerDefaultItem"}
+
+  /api/catalog/dinners/{dinner_code}/styles:
+    get:
+      tags: [Catalog]
+      parameters:
+        - in: path
+          name: dinner_code
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/ServingStyle"}
+
+  /api/catalog/dinners/{dinner_code}/option-groups:
+    get:
+      tags: [Catalog]
+      parameters:
+        - in: path
+          name: dinner_code
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: OK (코스 레벨 옵션 그룹/옵션)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        group_id: {type: integer}
+                        name: {type: string}
+                        select_mode: {type: string}
+                        min_select: {type: integer}
+                        max_select: {type: integer, nullable: true}
+                        is_required: {type: boolean}
+                        price_mode: {type: string}
+                        rank: {type: integer}
+                        options:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              option_id: {type: integer}
+                              item_code: {type: string, nullable: true}
+                              name: {type: string, nullable: true}
+                              price_delta_cents: {type: integer}
+                              multiplier: {type: number, format: float, nullable: true}
+                              is_default: {type: boolean}
+                              rank: {type: integer}
+
+  /api/catalog/price/preview:
+    post:
+      tags: [Catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PricePreviewRequest"}
+            example:
+              currency: KRW
+              dinners:
+                - dinner_code: valentine
+                  style_code: grand
+                  quantity: "1"
+                  item_overrides:
+                    - item_code: baguette
+                      delta_qty: "1"
+                  item_options:
+                    - item_code: steak
+                      group_name: 굽기
+                      option_names: ["미디엄"]
+                  dinner_options:
+                    - group_name: Beverage Upgrade
+                      option_item_code: champagne
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PricePreviewResponse"}
+
+  # ---------- Orders ----------
+  /api/orders/:
+    post:
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/OrderCreate"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Order"}
+    get:
+      tags: [Orders]
+      parameters:
+        - in: query
+          name: status
+          schema: {$ref: "#/components/schemas/OrderStatus"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: {$ref: "#/components/schemas/Order"}
+
+  /api/orders/{order_id}:
+    get:
+      tags: [Orders]
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: {type: integer}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Order"}
+        "404": {description: Not Found}
