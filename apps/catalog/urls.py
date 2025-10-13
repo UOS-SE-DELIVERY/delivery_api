@@ -1,35 +1,33 @@
 from django.urls import path
 
 from .views import (
-    CategoryListAPIView,
-    ItemListAPIView, ItemDetailAPIView, ItemAvailabilityAPIView,
-    ItemTagListAPIView,
-    DinnerListAPIView, DinnerDetailAPIView, DinnerDefaultItemsAPIView,
-    DinnerStylesAPIView, DinnerOptionGroupsAPIView,
-    PricePreviewAPIView
+    CatalogBootstrapAPIView,
+    # Add-ons (고정 라우트)
+    AddonsRecommendationsAPIView,
+    AddonsListPageAPIView,
+    # 일반 메뉴/상세/디너
+    MenuByCategoryAPIView,
+    ItemDetailWithExpandAPIView,
+    DinnerFullAPIView,
+    # 가격 미리보기
+    PricePreviewAPIView,
 )
 
 app_name = "catalog"
 
 urlpatterns = [
-    # categories
-    path("categories", CategoryListAPIView.as_view(), name="category-list"),
+    # 부트스트랩
+    path("bootstrap", CatalogBootstrapAPIView.as_view()),
 
-    # items
-    path("items", ItemListAPIView.as_view(), name="item-list"),
-    path("items/<str:code>", ItemDetailAPIView.as_view(), name="item-detail"),
-    path("items/<str:code>/availability", ItemAvailabilityAPIView.as_view(), name="item-availability"),
+    # Add-ons: 추천 카드 / 리스트 페이지 (dinner_code는 path param)
+    path("addons/<str:dinner_code>", AddonsRecommendationsAPIView.as_view()),
+    path("menu/addons/<str:dinner_code>", AddonsListPageAPIView.as_view()),
 
-    # tags
-    path("tags", ItemTagListAPIView.as_view(), name="tag-list"),
+    # 일반 메뉴 / 상세 / 디너
+    path("menu", MenuByCategoryAPIView.as_view()),                     # GET ?category=<slug>[&include=...]
+    path("items/<str:item_code>", ItemDetailWithExpandAPIView.as_view()),
+    path("dinners/<str:dinner_code>", DinnerFullAPIView.as_view()),
 
-    # dinners
-    path("dinners", DinnerListAPIView.as_view(), name="dinner-list"),
-    path("dinners/<str:dinner_code>", DinnerDetailAPIView.as_view(), name="dinner-detail"),
-    path("dinners/<str:dinner_code>/default-items", DinnerDefaultItemsAPIView.as_view(), name="dinner-default-items"),
-    path("dinners/<str:dinner_code>/styles", DinnerStylesAPIView.as_view(), name="dinner-styles"),
-    path("dinners/<str:dinner_code>/option-groups", DinnerOptionGroupsAPIView.as_view(), name="dinner-option-groups"),
-
-    # price preview
-    path("price/preview", PricePreviewAPIView.as_view(), name="price-preview"),
+    # 가격 미리보기
+    path("price/preview", PricePreviewAPIView.as_view()),
 ]

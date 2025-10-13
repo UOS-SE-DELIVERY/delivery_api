@@ -1,24 +1,26 @@
 from django.urls import path
 from .views import (
-    RegisterView, LoginView, LogoutView, MeView,
-    ContactUpdateView, ConsentUpdateView, PasswordChangeView,
-    AddressListCreateView, AddressDetailView, AddressSetDefaultView,
+    RegisterView, LoginView, LogoutView, MeViewSet
 )
 
+me_base = MeViewSet.as_view({"get": "retrieve", "patch": "partial_update"})
+me_password = MeViewSet.as_view({"post": "change_password"})
+me_addresses = MeViewSet.as_view({"get": "addresses", "post": "addresses"})
+me_address_item = MeViewSet.as_view({"patch": "modify_address", "delete": "modify_address"})
+me_address_default = MeViewSet.as_view({"patch": "set_default_address"})
+me_username = MeViewSet.as_view({"post": "change_username"})
+
 urlpatterns = [
-    # auth
-    path("register",        RegisterView.as_view()),   # POST
-    path("login",           LoginView.as_view()),      # POST
-    path("logout",          LogoutView.as_view()),     # POST
-    path("me",              MeView.as_view()),         # GET
+    # Auth
+    path("auth/register", RegisterView.as_view(), name="auth-register"),
+    path("auth/login", LoginView.as_view(), name="auth-login"),
+    path("auth/logout", LogoutView.as_view(), name="auth-logout"),
 
-    # profile
-    path("contact",         ContactUpdateView.as_view()),   # PATCH
-    path("profile-consent", ConsentUpdateView.as_view()),   # PATCH
-    path("password",        PasswordChangeView.as_view()),  # PATCH
-
-    # addresses
-    path("addresses",                 AddressListCreateView.as_view()),  # GET & POST
-    path("addresses/<int:idx>",       AddressDetailView.as_view()),      # PATCH/DELETE
-    path("addresses/default",         AddressSetDefaultView.as_view()),  # PATCH
+    # Me
+    path("me/", me_base, name="me"),
+    path("me/password/", me_password, name="me-password"),
+    path("me/addresses/", me_addresses, name="me-addresses"),
+    path("me/addresses/<int:idx>/", me_address_item, name="me-address-item"),
+    path("me/addresses/<int:idx>/default/", me_address_default, name="me-address-default"),
+    path("me/username/", me_username, name="me-username"),
 ]
