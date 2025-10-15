@@ -1,87 +1,40 @@
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, List, Tuple
+from __future__ import annotations
+from decimal import Decimal
+from typing import Dict, List
 
 from django.db import transaction
 from django.db.models import Prefetch
-from django.utils import timezone
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Customer
 from apps.catalog.models import (
-    MenuItem, ItemOption, ItemOptionGroup,
-    DinnerType, ServingStyle, DinnerStyleAllowed,
+    MenuItem, DinnerType, ServingStyle,
     DinnerTypeDefaultItem, DinnerOption
 )
+from apps.promotion.services import evaluate_discounts, redeem_discounts
+
 from .models import (
     Order, OrderDinner, OrderDinnerItem,
     OrderItemOption, OrderDinnerOption
 )
 from .serializers import (
-    OrderCreateRequestSerializer, OrderOutSerializer
+    OrderCreateRequestSerializer, OrderOutSerializer,
+    # 프리뷰 IO
+    PricePreviewRequestSerializer, PricePreviewResponseSerializer,
+    LineItemOutSerializer, LineOptionOutSerializer,
+    AdjustmentOutSerializer, DiscountLineOutSerializer,
+)
+from .services.pricing import (
+    as_cents_int, as_cents_dec,
+    calc_item_unit_cents, apply_style_to_base,
+    validate_style_allowed, validate_item_options_for_item, resolve_dinner_options_for_dinner,
 )
 
-# ---------- helpers ----------
-
-def as_cents(x: Decimal) -> int:
-    return int(x.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-
-def calc_item_unit_cents(item: MenuItem, selected_opts: List[ItemOption]) -> Tuple[int, List[Dict]]:
-    """
-    (base + Σ addon) × Π multiplier
-    반환: (unit_price_cents, option_snapshots[])
-    snapshots item:
-      - addon: {option_group_name, option_name, price_delta_cents>0, multiplier=None}
-      - multiplier: {option_group_name, option_name, price_delta_cents=0, multiplier>1}
-    """
-    base = Decimal(item.base_price_cents)
-    addon = Decimal("0")
-    mult = Decimal("1")
-    snaps: List[Dict] = []
-
-    for o in selected_opts:
-        g: ItemOptionGroup = o.group
-        if g.price_mode == "addon":
-            addon += Decimal(o.price_delta_cents)
-            snaps.append({
-                "option_group_name": g.name,
-                "option_name": o.name,
-                "price_delta_cents": int(o.price_delta_cents),
-                "multiplier": None
-            })
-        else:
-            m = Decimal(o.multiplier or "1")
-            mult *= m
-            snaps.append({
-                "option_group_name": g.name,
-                "option_name": o.name,
-                "price_delta_cents": 0,
-                "multiplier": m
-            })
-
-    unit = (base + addon) * mult
-    return as_cents(unit), snaps
-
-def apply_style_to_base(dinner: DinnerType, style: ServingStyle) -> Tuple[int, int]:
-    """
-    반환: (unit_cents, style_adjust_cents)
-    addon: base + addon, multiplier: round(base * m), adjust는 (new_base - base)
-    """
-    base = Decimal(dinner.base_price_cents)
-    if style.price_mode == "addon":
-        new_base = base + Decimal(style.price_value)
-        return as_cents(new_base), int(Decimal(style.price_value).quantize(Decimal("1")))
-    else:
-        new_base = base * Decimal(style.price_value)
-        return as_cents(new_base), as_cents(new_base - base)
-
-# ---------- views ----------
-
-class OrderListAPIView(generics.ListAPIView):
-    """
-    GET /api/orders?customer_id=...
-    """
+# ---------- 주문 목록/생성 ----------
+class OrderListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = OrderOutSerializer
 
     def get_queryset(self):
@@ -99,59 +52,34 @@ class OrderListAPIView(generics.ListAPIView):
             qs = qs.filter(customer_id=cid)
         return qs
 
-class OrderDetailAPIView(generics.RetrieveAPIView):
-    """
-    GET /api/orders/{id}
-    """
-    serializer_class = OrderOutSerializer
-    queryset = (Order.objects
-                .select_related("customer")
-                .prefetch_related(
-                    Prefetch("dinners",
-                             queryset=(OrderDinner.objects
-                                      .select_related("dinner_type", "style")
-                                      .prefetch_related("items__options", "options")))
-                ))
-
-class OrderCreateAPIView(APIView):
-    """
-    POST /api/orders
-    - models에 맞춰 style은 필수
-    - 모든 아이템은 어떤 디너(OrderDinner)에 소속되어 스냅샷됨
-    """
     @transaction.atomic
-    def post(self, request):
+    def post(self, request, *args, **kwargs):
         s = OrderCreateRequestSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         data = s.validated_data
 
-        # 고객 확인
-        try:
-            customer = Customer.objects.get(pk=data["customer_id"])
-        except Customer.DoesNotExist:
+        customer = Customer.objects.filter(pk=data["customer_id"]).first()
+        if not customer:
             return Response({"detail": "Invalid customer_id"}, status=400)
 
-        # 주문 헤더 생성(합계는 나중에 업데이트)
+        # 헤더 생성(옵션 필드 일괄 매핑)
+        optional_fields = [
+            "receiver_name","receiver_phone","delivery_address",
+            "geo_lat","geo_lng","place_label","address_meta",
+            "payment_token","card_last4","meta",
+        ]
+        payload = {k: (data.get(k) or None) for k in optional_fields}
         order = Order.objects.create(
             customer=customer,
             status="pending",
             order_source=data.get("order_source", "GUI"),
-            receiver_name=data.get("receiver_name") or None,
-            receiver_phone=data.get("receiver_phone") or None,
-            delivery_address=data.get("delivery_address") or None,
-            geo_lat=data.get("geo_lat"),
-            geo_lng=data.get("geo_lng"),
-            place_label=data.get("place_label") or None,
-            address_meta=data.get("address_meta") or None,
-            payment_token=data.get("payment_token") or None,
-            card_last4=data.get("card_last4") or None,
             subtotal_cents=0, discount_cents=0, total_cents=0,
-            meta=data.get("meta") or None,
+            **payload,
         )
 
         subtotal = 0
 
-        # ---- Dinner (필수) ----
+        # ---- 디너(필수) ----
         dsel = data["dinner"]
         dinner = DinnerType.objects.filter(code=dsel["code"], active=True).first()
         if not dinner:
@@ -161,13 +89,27 @@ class OrderCreateAPIView(APIView):
         if not style:
             return Response({"detail": "Invalid dinner.style"}, status=400)
 
-        # 허용 조합 검증
-        if not DinnerStyleAllowed.objects.filter(dinner_type=dinner, style=style).exists():
-            return Response({"detail": "Style not allowed for this dinner"}, status=400)
+        try:
+            validate_style_allowed(dinner, style)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
 
         unit_cents, style_adjust_cents = apply_style_to_base(dinner, style)
         qty = Decimal(dsel.get("quantity") or "1")
-        dinner_subtotal = int(qty * unit_cents)
+
+        try:
+            dinner_opts = resolve_dinner_options_for_dinner(dinner, dsel.get("dinner_options") or [])
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+        for dop in dinner_opts:
+            if (dop.group.price_mode or "addon") == "addon":
+                unit_cents += int(dop.price_delta_cents or 0)
+            else:
+                m = Decimal(dop.multiplier or "1")
+                unit_cents = as_cents_int(Decimal(unit_cents) * m)
+
+        dinner_subtotal = as_cents_int(Decimal(unit_cents) * qty)
         subtotal += dinner_subtotal
 
         od = OrderDinner.objects.create(
@@ -177,7 +119,26 @@ class OrderCreateAPIView(APIView):
             style_adjust_cents=style_adjust_cents, notes=None
         )
 
-        # 디너 기본 아이템 스냅샷(포함 여부에 따라 단가 0 처리 가능)
+        # 디너 옵션 스냅샷
+        for dop in dinner_opts:
+            if (dop.group.price_mode or "addon") == "addon":
+                OrderDinnerOption.objects.create(
+                    order_dinner=od,
+                    option_group_name=dop.group.name,
+                    option_name=(dop.item.name if dop.item_id else dop.name),
+                    price_delta_cents=int(dop.price_delta_cents or 0),
+                    multiplier=None
+                )
+            else:
+                OrderDinnerOption.objects.create(
+                    order_dinner=od,
+                    option_group_name=dop.group.name,
+                    option_name=(dop.item.name if dop.item_id else dop.name),
+                    price_delta_cents=0,
+                    multiplier=Decimal(dop.multiplier or "1")
+                )
+
+        # 디너 기본 아이템 스냅샷
         defaults = (DinnerTypeDefaultItem.objects
                     .filter(dinner_type=dinner)
                     .select_related("item")
@@ -191,58 +152,20 @@ class OrderCreateAPIView(APIView):
                 is_default=True, change_type="unchanged"
             )
 
-        # 디너 옵션 스냅샷
-        for opt_id in dsel.get("dinner_options", []):
-            dop = (DinnerOption.objects
-                   .filter(pk=opt_id, group__dinner_type=dinner)
-                   .select_related("group", "item")
-                   .first())
-            if not dop:
-                return Response({"detail": f"Invalid dinner_option id={opt_id}"}, status=400)
-
-            if dop.group.price_mode == "addon":
-                delta = int(Decimal(dop.price_value).quantize(Decimal("1")))
-                OrderDinnerOption.objects.create(
-                    order_dinner=od,
-                    option_group_name=dop.group.name,
-                    option_name=(dop.item.name if dop.item_id else dop.name),
-                    price_delta_cents=delta,
-                    multiplier=None
-                )
-                subtotal += delta * int(qty)
-            else:
-                m = Decimal(dop.price_value)
-                OrderDinnerOption.objects.create(
-                    order_dinner=od,
-                    option_group_name=dop.group.name,
-                    option_name=(dop.item.name if dop.item_id else dop.name),
-                    price_delta_cents=0,
-                    multiplier=m
-                )
-                # 배수는 단가에 곱 → 차액 반영(단순화)
-                new_unit = as_cents(Decimal(unit_cents) * m)
-                subtotal += int(qty * (new_unit - unit_cents))
-                unit_cents = new_unit
-
-        # ---- 개별 아이템(해당 디너에 추가) ----
+        # ---- 개별 아이템 ----
         for it in data.get("items", []):
             item = MenuItem.objects.filter(code=it["code"], active=True).first()
             if not item:
                 return Response({"detail": f"Invalid item.code: {it['code']}"}, status=400)
 
-            sel_opts = []
-            if it.get("options"):
-                opts = (ItemOption.objects
-                        .filter(pk__in=it["options"])
-                        .select_related("group", "group__item"))
-                for o in opts:
-                    if o.group.item_id != item.item_id:
-                        return Response({"detail": f"Option {o.pk} not for item {item.code}"}, status=400)
-                    sel_opts.append(o)
+            try:
+                sel_opts = validate_item_options_for_item(item, it.get("options") or [])
+            except ValueError as e:
+                return Response({"detail": str(e)}, status=400)
 
             unit_item_cents, snaps = calc_item_unit_cents(item, sel_opts)
             qty_item = Decimal(it["qty"])
-            line_sub = int(qty_item * unit_item_cents)
+            line_sub = as_cents_int(Decimal(unit_item_cents) * qty_item)
             subtotal += line_sub
 
             odi = OrderDinnerItem.objects.create(
@@ -260,10 +183,173 @@ class OrderCreateAPIView(APIView):
                     multiplier=sopt["multiplier"]
                 )
 
+        # ---- 프로모션 평가지원 (promotion 서비스 호출) ----
+        coupon_codes = [c["code"] for c in data.get("coupons", [])]
+        discounts, total_disc, total_after = evaluate_discounts(
+            subtotal_cents=subtotal,
+            customer_id=data["customer_id"],
+            channel=data.get("order_source") or "GUI",
+            dinner_code=dinner.code,
+            item_lines=[],  # 필요 시 라인 전달 가능
+            style_code=style.code,
+            dinner_option_ids=[dop.pk for dop in dinner_opts],
+            coupon_codes=coupon_codes,
+        )
+
         # 합계 고정
-        order.subtotal_cents = subtotal
-        order.discount_cents = 0
-        order.total_cents = subtotal
-        order.save(update_fields=["subtotal_cents", "discount_cents", "total_cents"])
+        order.subtotal_cents = int(subtotal)
+        order.discount_cents = int(total_disc)
+        order.total_cents = int(total_after)
+
+        meta = data.get("meta") or {}
+        if discounts:
+            meta = {**meta, "discounts": discounts}
+        order.meta = meta or None
+        order.save(update_fields=["subtotal_cents", "discount_cents", "total_cents", "meta"])
+
+        # 사용량 확정
+        redeem_discounts(
+            order=order,
+            customer_id=data["customer_id"],
+            channel=data.get("order_source") or "GUI",
+            discounts=discounts,  # code/amount_cents 포함된 라인 배열을 넘김
+        )
 
         return Response(OrderOutSerializer(order).data, status=201)
+
+# ---------- 주문 단건 ----------
+class OrderDetailAPIView(generics.RetrieveAPIView):
+    serializer_class = OrderOutSerializer
+    queryset = (Order.objects
+                .select_related("customer")
+                .prefetch_related(
+                    Prefetch("dinners",
+                             queryset=(OrderDinner.objects
+                                      .select_related("dinner_type", "style")
+                                      .prefetch_related("items__options", "options")))
+                ))
+
+# ---------- 가격 프리뷰 ----------
+class OrderPricePreviewAPIView(APIView):
+    """
+    POST /api/orders/price/preview
+    - 디너 base 포함, multiplier는 디너 가격에만
+    - 스타일/옵션 소속 검증
+    - HALF_UP 반올림
+    - 할인은 promotion.evaluate_discounts 위임
+    """
+    def post(self, request):
+        s = PricePreviewRequestSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        data = s.validated_data
+
+        dsel = data["dinner"]
+
+        dinner = DinnerType.objects.filter(code=dsel["code"], active=True).first()
+        if not dinner:
+            return Response({"detail": "Invalid dinner.code"}, status=400)
+
+        style = ServingStyle.objects.filter(code=dsel["style"]).first()
+        if not style:
+            return Response({"detail": "Invalid dinner.style"}, status=400)
+
+        try:
+            validate_style_allowed(dinner, style)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+        unit_cents, _style_adj = apply_style_to_base(dinner, style)
+        qty = Decimal(dsel.get("quantity") or "1")
+
+        try:
+            dinner_opts = resolve_dinner_options_for_dinner(dinner, dsel.get("dinner_options") or [])
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+        adjustments = []
+        # 스타일 라인(표시용)
+        if (style.price_mode or "addon") == "addon":
+            adjustments.append(AdjustmentOutSerializer({
+                "type": "style", "label": style.name,
+                "mode": "addon", "value_cents": int(style.price_value or 0), "multiplier": None,
+            }).data)
+        else:
+            m = Decimal(style.price_value or "1.0")
+            adjustments.append(AdjustmentOutSerializer({
+                "type": "style", "label": style.name,
+                "mode": "multiplier", "value_cents": None, "multiplier": m,
+            }).data)
+            unit_cents = as_cents_int(Decimal(unit_cents))  # 이미 apply_style_to_base에서 반영됨
+
+        # 디너 옵션은 디너 가격에만 반영
+        for dop in dinner_opts:
+            if (dop.group.price_mode or "addon") == "addon":
+                delta = int(dop.price_delta_cents or 0)
+                unit_cents += delta
+                adjustments.append(AdjustmentOutSerializer({
+                    "type": "dinner_option",
+                    "label": dop.name or (dop.item.name if dop.item_id else "Option"),
+                    "mode": "addon", "value_cents": delta, "multiplier": None,
+                }).data)
+            else:
+                m = Decimal(dop.multiplier or "1.0")
+                unit_cents = as_cents_int(Decimal(unit_cents) * m)
+                adjustments.append(AdjustmentOutSerializer({
+                    "type": "dinner_option",
+                    "label": dop.name or (dop.item.name if dop.item_id else "Option"),
+                    "mode": "multiplier", "value_cents": None, "multiplier": m,
+                }).data)
+
+        dinner_subtotal = as_cents_int(Decimal(unit_cents) * qty)
+
+        # 아이템 라인
+        items_total = 0
+        line_items = []
+        for it in data.get("items", []):
+            item = MenuItem.objects.filter(code=it["code"], active=True).first()
+            if not item:
+                return Response({"detail": f"Invalid item.code: {it['code']}"}, status=400)
+
+            try:
+                sel_opts = validate_item_options_for_item(item, it.get("options") or [])
+            except ValueError as e:
+                return Response({"detail": str(e)}, status=400)
+
+            unit_item_cents, snaps = calc_item_unit_cents(item, sel_opts)
+            qty_item = Decimal(it["qty"])
+            line_sub = as_cents_int(Decimal(unit_item_cents) * qty_item)
+            items_total += line_sub
+
+            line_items.append(LineItemOutSerializer({
+                "item_code": item.code,
+                "name": item.name,
+                "qty": qty_item,
+                "unit_price_cents": unit_item_cents,
+                "options": [LineOptionOutSerializer(snap).data for snap in snaps],
+                "subtotal_cents": line_sub,
+            }).data)
+
+        subtotal = dinner_subtotal + items_total
+
+        # 할인 위임
+        coupon_codes = [c["code"] for c in data.get("coupons", [])]
+        discounts, total_disc, total_after = evaluate_discounts(
+            subtotal_cents=subtotal,
+            customer_id=data.get("customer_id"),
+            channel=data.get("order_source") or "GUI",
+            dinner_code=dinner.code,
+            item_lines=[{"code": li["item_code"], "qty": str(li["qty"])} for li in line_items],
+            style_code=style.code,
+            dinner_option_ids=[dop.pk for dop in dinner_opts],
+            coupon_codes=coupon_codes,
+        )
+
+        out = {
+            "line_items": line_items,
+            "adjustments": adjustments,
+            "subtotal_cents": int(subtotal),
+            "discounts": [DiscountLineOutSerializer(d).data for d in discounts],
+            "discount_cents": int(total_disc),
+            "total_cents": int(total_after),
+        }
+        return Response(PricePreviewResponseSerializer(out).data, status=200)

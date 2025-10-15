@@ -1,10 +1,10 @@
 from django.urls import path
-from .views import OrderListAPIView, OrderDetailAPIView, OrderCreateAPIView
+from .views import OrderListCreateAPIView, OrderDetailAPIView, OrderPricePreviewAPIView
 
 app_name = "orders"
 
 urlpatterns = [
-    path("", OrderListAPIView.as_view(), name="order-list"),
+    path("price/preview", OrderPricePreviewAPIView.as_view(), name="order-price-preview"),
+    path("", OrderListCreateAPIView.as_view(), name="order-list-create"),        # GET, POST
     path("<int:pk>", OrderDetailAPIView.as_view(), name="order-detail"),
-    path("", OrderCreateAPIView.as_view(), name="order-create"),  # POST same path
 ]
