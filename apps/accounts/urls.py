@@ -12,9 +12,9 @@ me_username = MeViewSet.as_view({"post": "change_username"})
 
 urlpatterns = [
     # Auth
-    path("auth/register", RegisterView.as_view(), name="auth-register"),
-    path("auth/login", LoginView.as_view(), name="auth-login"),
-    path("auth/logout", LogoutView.as_view(), name="auth-logout"),
+    path("register", RegisterView.as_view(), name="auth-register"),
+    path("login", LoginView.as_view(), name="auth-login"),
+    path("logout", LogoutView.as_view(), name="auth-logout"),
 
     # Me
     path("me/", me_base, name="me"),

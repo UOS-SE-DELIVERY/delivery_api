@@ -17,6 +17,20 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {"format": "[%(levelname)s] %(name)s: %(message)s"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+    },
+    "loggers": {
+        "apps.staff.eventbus": {"handlers": ["console"], "level": "INFO"},
+        "apps.staff.views": {"handlers": ["console"], "level": "INFO"},
+    },
+}
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -29,6 +43,9 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+APPEND_SLASH = False
+
+ORDERS_NOTIFY_CHANNELS = ["orders_events"]
 
 # Application definition
 
@@ -43,6 +60,7 @@ INSTALLED_APPS = [
     'apps.catalog',
     'apps.orders',
     'apps.staff',
+    'apps.promotion',
 ]
 
 INSTALLED_APPS += ['rest_framework']

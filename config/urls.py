@@ -41,10 +41,11 @@ urlpatterns = [
     path("api/auth/", include("apps.accounts.urls")),
     path("api/catalog/", include("apps.catalog.urls")), 
     path("api/orders/", include("apps.orders.urls")),
+    path("api/staff/", include("apps.staff.urls")), 
     path("api/schema/", SpectacularAPIView.as_view()),    # 스키마 JSON/YAML
     path("api/docs/", scalar_docs),
 
     # # 250922: 직원 페이지는 내부망으로 뺄 수도 있음. 플라스크로 하던지 프론트 해주신다고 하면 또 이어서 하면 될 듯
     # #         근데 플라스크로 내가 만드는게 편할듯
-    # path("api/staff"), include("apps.staff.urls"), 
+    # # 251015: 그냥 장고로 함.
 ]

@@ -1,47 +1,35 @@
 from django.db import models
-from django.db.models import Q, F
-from django.utils import timezone
+from django.contrib.auth.hashers import make_password, check_password
 
 class StaffRole(models.TextChoices):
-    DELIVERY = "delivery", "Delivery"
-    KITCHEN  = "kitchen",  "Kitchen"
+    OWNER = "OWNER", "Owner"
+    MANAGER = "MANAGER", "Manager"
+    KITCHEN = "KITCHEN", "Kitchen"
+    DELIVERY = "DELIVERY","Delivery"
 
 class Staff(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    name = models.TextField()
-    role = models.CharField(max_length=20, choices=StaffRole.choices)
-    active = models.BooleanField(default=True)
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+
+    @property
+    def is_anonymous(self) -> bool:
+        return False
+
+    username = models.CharField(max_length=30, unique=True)
+    password = models.CharField(max_length=256)  # Django 해시 저장(pbkkdf2_...)
+    role = models.CharField(max_length=16, choices=StaffRole.choices, default=StaffRole.DELIVERY)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "staff"
+        db_table = "staff_staff"
 
-    def __str__(self): return f"{self.name} ({self.role})"
+    def set_password(self, raw_password: str):
+        self.password = make_password(raw_password)
 
-class StaffShift(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="shifts")
-    started_at = models.DateTimeField(default=timezone.now)
-    ended_at = models.DateTimeField(null=True, blank=True)
-    work_minutes = models.IntegerField(null=True, blank=True, editable=False)
+    def check_password(self, raw_password: str) -> bool:
+        return check_password(raw_password, self.password)
 
-    class Meta:
-        db_table = "staff_shifts"
-        constraints = [
-            models.CheckConstraint(
-                name="ck_shift_time_order",
-                check=Q(ended_at__isnull=True) | Q(ended_at__gt=F("started_at")),
-            ),
-            # 직원별 '미종료' 근무는 1개만 허용 (부분 유니크)
-            models.UniqueConstraint(
-                fields=["staff"], condition=Q(ended_at__isnull=True), name="ux_staff_one_open_shift"
-            ),
-        ]
-
-class StaffDailyHours(models.Model):
-    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="daily_hours")
-    work_date = models.DateField()
-    minutes = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        db_table = "staff_daily_hours"
-        unique_together = (("staff", "work_date"),)
+    def __str__(self):
+        return f"{self.username}({self.role})"

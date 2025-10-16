@@ -38,9 +38,9 @@ class CatalogBootstrapAPIView(APIView):
         dinners = DinnerType.objects.filter(active=True).order_by("name")
 
         payload = {
-            "categories": MenuCategoryTreeSerializer(roots, many=True).data,
-            "tags": ItemTagSerializer(tags, many=True).data,
-            "dinners": DinnerTypeSerializer(dinners, many=True).data,
+            "categories": roots,
+            "tags": tags,
+            "dinners": dinners,
         }
         return Response(CatalogBootstrapSerializer(payload).data)
 
@@ -127,9 +127,9 @@ class DinnerFullAPIView(generics.RetrieveAPIView):
                       .order_by("rank", "name"))
 
         payload = {
-            "dinner": DinnerTypeSerializer(dinner).data,
-            "default_items": DinnerTypeDefaultItemSerializer(defaults, many=True).data,
-            "allowed_styles": ServingStyleSerializer(styles, many=True).data,
-            "option_groups": DinnerOptionGroupSerializer(opt_groups, many=True).data,
+            "dinner": dinner,
+            "default_items": list(defaults),
+            "allowed_styles": list(styles),
+            "option_groups": list(opt_groups),
         }
         return Response(DinnerFullSerializer(payload).data)
