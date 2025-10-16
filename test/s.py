@@ -1,57 +1,49 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-sse_order_flow_test.py
 
-목표:
-  1) 직원 세션(S_STAFF)으로 /api/staff/sse/orders 에 먼저 연결
-  2) 별도 고객 세션(S_CUST)으로 주문 1건 생성
-  3) SSE에서 새 주문 이벤트가 실제로 들어오는지 확인
-
-가정:
-  - APPEND_SLASH=False
-  - /api/staff/login 은 HttpOnly 'access' 쿠키 세팅
-  - /api/staff/sse/orders 는 접속 시 'ready', 'bootstrap' 이벤트를 먼저 보냄
-  - 주문 생성 시 status=pending 이 기본값
-"""
-
-import time, json, threading, sys
+import os
+import sys
+import time
+import json
+import threading
 from queue import Queue, Empty
-from typing import Optional, Tuple, Dict, Any, Iterable
+from typing import Iterable, Optional, Tuple
+
 import requests
 
-# =============== 설정 ===============
-BASE_URL   = "http://localhost:8000".rstrip("/")
-API_PREFIX = "/api"
-TIMEOUT    = 30
+# ================== 환경 / 상수 ==================
 
-ACCOUNTS = f"{BASE_URL}{API_PREFIX}/auth"
-CATALOG  = f"{BASE_URL}{API_PREFIX}/catalog"
-ORDERS   = f"{BASE_URL}{API_PREFIX}/orders"
-STAFF    = f"{BASE_URL}{API_PREFIX}/staff"
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
+
+STAFF    = f"{BASE_URL}/api/staff"
+ACCOUNTS = f"{BASE_URL}/api/auth"
+CATALOG  = f"{BASE_URL}/api/catalog"
+ORDERS   = f"{BASE_URL}/api/orders"
 
 STAFF_USER = "boss"
 STAFF_PASS = "1234"
 
-DINNER_CODE  = "valentine"
-DINNER_STYLE = "simple"
+TIMEOUT = int(os.environ.get("TIMEOUT", "10"))
 
+# SSE 파라미터 (필요 시 환경변수로 조정)
 SSE_PARAMS = {
-    "status": "pending",   # 연결 이후 pending 주문만 구독
-    # "since": "...",      # 필요시 ISO8601
-    # "limit": "20",
+    "status": os.environ.get("SSE_STATUS", "pending"),
+    "limit": int(os.environ.get("SSE_LIMIT", "20")),
 }
 
-SSE_CONNECT_WAIT = 8      # 첫 이벤트(ready/bootstrap) 기다리는 최대 초
-SSE_EVENT_WAIT   = 20     # 주문 생성 후 새 이벤트 대기 초
+# 타임아웃 설정
+SSE_CONNECT_WAIT = int(os.environ.get("SSE_CONNECT_WAIT", "8"))     # 첫 프레임 대기
+SSE_DIAG_WAIT    = int(os.environ.get("SSE_DIAG_WAIT", "15"))       # diagnostic 대기
+SSE_EVENT_WAIT   = int(os.environ.get("SSE_EVENT_WAIT", "20"))      # 주문 후 이벤트 대기
 
-# ====================================
+# ================== 유틸 ==================
 
 def fail(msg: str):
     print(f"\n[FAIL] {msg}")
     sys.exit(2)
 
-def call(sess: requests.Session, method: str, url: str, expect: Iterable[int] | int = (200,), **kw) -> requests.Response:
+def call(sess: requests.Session, method: str, url: str,
+         expect: Iterable[int] | int = (200,), **kw) -> requests.Response:
     exp = (expect,) if isinstance(expect, int) else tuple(expect)
     kw.setdefault("timeout", TIMEOUT)
     r = sess.request(method, url, **kw)
@@ -81,14 +73,25 @@ def _parse_sse_frame(frame: str) -> Tuple[Optional[str], Optional[dict]]:
         obj = {"raw": data_str}
     return event, obj
 
-def sse_reader(sess: requests.Session, url: str, params: dict, out_q: Queue, stop_evt: threading.Event):
+# ================== SSE 리더 ==================
+
+def sse_reader(sess: requests.Session, url: str, params: dict,
+               out_q: Queue, stop_evt: threading.Event):
+    """
+    SSE 프레임을 읽어서 (event, data) 튜플로 out_q에 넣는다.
+    - Accept 헤더를 명시하고
+    - iter_lines(chunk_size=1)로 즉시 라인 분리
+    """
     try:
-        with sess.get(url, params=params, stream=True, timeout=max(TIMEOUT, 60)) as resp:
+        # 세션 기본 Accept는 application/json일 수 있으므로, 이 요청만 덮어씀
+        headers = {"Accept": "text/event-stream"}
+        with sess.get(url, params=params, headers=headers,
+                      stream=True, timeout=max(TIMEOUT, 60)) as resp:
             if resp.status_code != 200:
                 out_q.put(("error", {"status": resp.status_code, "text": resp.text}))
                 return
             buf = ""
-            for raw in resp.iter_lines(decode_unicode=True):
+            for raw in resp.iter_lines(decode_unicode=True, chunk_size=1):
                 if stop_evt.is_set():
                     break
                 if raw is None:
@@ -104,24 +107,30 @@ def sse_reader(sess: requests.Session, url: str, params: dict, out_q: Queue, sto
     except requests.RequestException as e:
         out_q.put(("error", {"exception": str(e)}))
 
+# ================== 인증/주문 ==================
+
 def staff_login() -> requests.Session:
-    s = requests.Session(); s.headers.update({"Accept": "application/json"})
-    r = call(s, "POST", f"{STAFF}/login", json={"username": STAFF_USER, "password": STAFF_PASS})
+    s = requests.Session()
+    s.headers.update({"Accept": "application/json"})
+    call(s, "POST", f"{STAFF}/login", json={"username": "boss", "password": "1234"})
     if "access" not in s.cookies:
         fail("스태프 로그인 후 'access' 쿠키가 없음")
     print("[OK] Staff 로그인 성공")
     return s
 
 def customer_register_and_login() -> Tuple[requests.Session, int]:
-    s = requests.Session(); s.headers.update({"Accept":"application/json"})
+    s = requests.Session()
+    s.headers.update({"Accept": "application/json"})
     suffix = int(time.time() * 1000) % 1_000_000
     username = f"tester_{suffix}"
     password = f"Aa1!ok_{suffix}"
 
-    call(s, "POST", f"{ACCOUNTS}/register", expect=(200,201,409),
+    # 회원가입(이미 있으면 409)
+    call(s, "POST", f"{ACCOUNTS}/register", expect=(200, 201, 409),
          json={"username": username, "password": password, "profile_consent": False})
     r = call(s, "POST", f"{ACCOUNTS}/login", json={"username": username, "password": password})
-    # 토큰이 헤더로 온다면 Authorization 세팅, 아니라면 쿠키 사용
+
+    # 토큰이 바디로 오면 Authorization 헤더 세팅, 아니면 쿠키 사용
     try:
         tok = r.json().get("access") or r.json().get("token")
     except Exception:
@@ -132,7 +141,6 @@ def customer_register_and_login() -> Tuple[requests.Session, int]:
         if "access" not in s.cookies:
             fail("고객 로그인 토큰/쿠키를 확인할 수 없음")
 
-    # customer_id 가져오기 (이 엔드포인트는 슬래시가 필요함)
     me = call(s, "GET", f"{ACCOUNTS}/me/").json()
     customer_id = (
         me.get("customer_id")
@@ -144,54 +152,92 @@ def customer_register_and_login() -> Tuple[requests.Session, int]:
     print(f"[OK] Customer 로그인 성공 (customer_id={customer_id})")
     return s, int(customer_id)
 
-def select_dinner_option_ids(sess: requests.Session, code: str) -> list:
-    r = call(sess, "GET", f"{CATALOG}/dinners/{code}")
-    detail = r.json()
-    groups = detail.get("option_groups") or detail.get("dinner_option_groups") or []
-    out = []
-    for g in groups:
-        options = g.get("options") or []
-        if not options:
-            continue
-        chosen = next((o for o in options if o.get("default") is True), options[0])
-        opt_id = chosen.get("option_id") or chosen.get("code") or chosen.get("id")
-        if isinstance(opt_id, str) and opt_id.isdigit():
-            opt_id = int(opt_id)
-        out.append(opt_id)
-    return out
+def create_order_after_sse(sess_cust: requests.Session, customer_id: int,
+                           dinner_code: str = os.environ.get("DINNER_CODE", "valentine"),
+                           dinner_style: str = os.environ.get("DINNER_STYLE", "simple")) -> int:
+    """
+    1) 카탈로그 조회(옵션 id 추출은 가능하면)
+    2) price/preview: 단수 'dinner' 스키마
+    3) 주문 생성: 'dinner'(단수) + 평평한 수신자/결제 필드 (receiver_*, payment_*)
+    """
+    # 1) 카탈로그(옵션 id는 없어도 됨)
+    try:
+        r_cat = call(sess_cust, "GET", f"{CATALOG}/dinners/{dinner_code}")
+        cat = r_cat.json()
+        opt_ids = []
+        for key in ("options", "dinner_options", "option_groups"):
+            if isinstance(cat.get(key), list):
+                for el in cat[key]:
+                    _id = el.get("id")
+                    if isinstance(_id, int):
+                        opt_ids.append(_id)
+        opt_ids = list(dict.fromkeys(opt_ids))
+    except Exception:
+        opt_ids = []
 
-def create_order_after_sse(sess_cust: requests.Session, customer_id: int) -> int:
-    # 프리뷰
-    opt_ids = select_dinner_option_ids(sess_cust, DINNER_CODE)
+    # 2) price/preview (단수 'dinner')
     preview_payload = {
         "order_source": "GUI",
         "customer_id": customer_id,
         "dinner": {
-            "code": DINNER_CODE,
-            "style": DINNER_STYLE,
+            "code": dinner_code,
+            "style": dinner_style,
             "quantity": 1,
-            "dinner_options": opt_ids
+            "dinner_options": opt_ids,
         },
         "items": [],
-        "coupons": []
+        "coupons": [],
     }
-    call(sess_cust, "POST", f"{ORDERS}/price/preview", expect=(200,), json=preview_payload)
+    print("[DBG] preview_payload =", json.dumps(preview_payload, ensure_ascii=False))
+    call(sess_cust, "POST", f"{ORDERS}/price/preview", expect=200, json=preview_payload)
+    print("[OK] 가격 프리뷰 성공")
 
-    # 생성(주소 스냅샷 포함)
-    create_payload = {
-        **preview_payload,
+    # 3) 주문 생성 (receiver/payment 중첩 금지, 필드 평평하게)
+    order_payload = {
+        "order_source": "GUI",
+        "customer_id": customer_id,
+
+        # ⬇️ DB 컬럼과 동일한 평평한 수신자/주소 필드
         "receiver_name": "홍길동",
-        "receiver_phone": "010-1234-5678",
-        "delivery_address": "서울시 임시로 123",
+        "receiver_phone": "010-0000-0000",
+        "delivery_address": "서울시 테스트구 테스트로 123",
         "place_label": "기본",
+        # geo_lat/geo_lng, address_meta는 선택
+
+        # ⬇️ 결제도 평평하게
+        "payment_token": "tok_test",
+        "card_last4": "4242",
+
+        # ⬇️ 단수 'dinner' 그대로
+        "dinner": preview_payload["dinner"],
+
+        "items": [],
+        "coupons": [],
     }
-    r = call(sess_cust, "POST", f"{ORDERS}/", expect=(201,200), json=create_payload)
-    body = r.json()
-    oid = body.get("id") or body.get("order_id") or body.get("pk")
-    if not oid:
-        fail("주문 생성 응답에 id 없음")
+    print("[DBG] order_payload =", json.dumps(order_payload, ensure_ascii=False))
+    r = sess_cust.post(f"{ORDERS}/", json=order_payload, timeout=TIMEOUT)
+
+    if r.status_code != 201:
+        print("\n=== ERROR RESP: POST /api/orders/ ===")
+        print("HTTP", r.status_code)
+        try:
+            print(r.json())
+        except Exception:
+            print((r.text or "")[:1000])
+        fail("주문 생성 실패")
+
+    try:
+        body = r.json()
+        oid = int(body.get("id") or body.get("order_id") or (body.get("order") or {}).get("id"))
+    except Exception:
+        print("응답 바디:", (r.text or "")[:500])
+        fail("주문 생성 응답에서 id를 찾을 수 없음")
+
     print(f"[OK] 주문 생성 완료 (order_id={oid})")
-    return int(oid)
+    return oid
+
+
+# ================== 메인 시나리오 ==================
 
 def main():
     # 1) 세션 분리
@@ -204,20 +250,35 @@ def main():
     t = threading.Thread(
         target=sse_reader,
         args=(S_STAFF, f"{STAFF}/sse/orders", dict(SSE_PARAMS), q, stop_evt),
-        daemon=True
+        daemon=True,
     )
     t.start()
     print(f"[i] SSE 연결 시도 → {STAFF}/sse/orders params={SSE_PARAMS}")
 
-    # 2-1) 핸드셰이크 이벤트 대기
-    try:
-        ev, data = q.get(timeout=SSE_CONNECT_WAIT)
-        print(f"=== SSE 첫 이벤트 ===\n{ {'event': ev, 'data': data} }")
-    except Empty:
-        stop_evt.set(); t.join(timeout=2)
-        fail("SSE 첫 이벤트 타임아웃(ready/bootstrap 없음)")
+    # 2-1) ready/bootstrap을 지나 'diagnostic'을 받을 때까지 대기
+    first_ev = None
+    diag_seen = False
+    deadline = time.time() + max(SSE_CONNECT_WAIT, SSE_DIAG_WAIT)
+    while time.time() < deadline:
+        try:
+            ev, data = q.get(timeout=1.0)
+            if first_ev is None:
+                first_ev = (ev, data)
+                print(f"=== SSE 첫 이벤트 ===\n{{'event': '{ev}', 'data': {data}}}")
+            # 핸드셰이크 이벤트들 그대로 보여주기
+            if ev in ("bootstrap", "diagnostic", "error"):
+                print(f"[SSE] {ev}: {data}")
+            if ev == "diagnostic":
+                diag_seen = True
+                break
+        except Empty:
+            pass
 
-    # 3) SSE가 열린 상태에서 주문 하나 생성
+    if not diag_seen:
+        # 서버가 아직 diagnostic을 안 주는 상황이면 레이스 가능 → 경고만 남기고 진행
+        print("[!] diagnostic 미수신: LISTEN 시작 타이밍이 늦을 수 있음(이벤트 누락 위험).")
+
+    # 3) 주문 생성 (LISTEN 이후로 미루어 레이스 제거)
     new_oid = create_order_after_sse(S_CUST, customer_id)
 
     # 4) 새 주문 이벤트 대기
@@ -227,13 +288,13 @@ def main():
         try:
             ev, data = q.get(timeout=1.0)
             print(f"[SSE] {ev}: {data}")
-            # 이벤트 페이로드 형태에 따라 매칭(아래는 넓게 커버)
             payload = data or {}
             order_id = (
                 payload.get("order_id")
                 or payload.get("id")
                 or (payload.get("order") or {}).get("id")
             )
+            # event 명은 order_created/order_updated/혹은 채널명일 수 있으니 id만으로 매칭
             if order_id and int(order_id) == new_oid:
                 got = (ev, payload)
                 break
@@ -241,10 +302,11 @@ def main():
             pass
 
     # 5) 종료/결과
-    stop_evt.set(); t.join(timeout=2)
+    stop_evt.set()
+    t.join(timeout=2)
     if not got:
         fail(f"SSE에서 신규 주문 이벤트를 못 받음 (order_id={new_oid}, {SSE_EVENT_WAIT}s 대기)")
-    print("\n 성공: SSE가 신규 주문 이벤트를 수신했습니다.")
+    print("\n성공: SSE가 신규 주문 이벤트를 수신했습니다.")
     print(f"   event={got[0]} payload={got[1]}")
 
 if __name__ == "__main__":

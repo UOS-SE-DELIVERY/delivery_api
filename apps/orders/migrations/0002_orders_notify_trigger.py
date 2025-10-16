@@ -1,3 +1,4 @@
+# apps/orders/migrations/0002_orders_notify_trigger.py
 from django.db import migrations, connections, DEFAULT_DB_ALIAS
 
 
@@ -17,6 +18,7 @@ def forwards(apps, schema_editor):
           ELSIF TG_OP = 'UPDATE' THEN
             rec := NEW;
           ELSE
+            -- 우리가 다루지 않는 연산이면 그대로 통과
             RETURN NEW;
           END IF;
 
@@ -40,9 +42,14 @@ def forwards(apps, schema_editor):
             'ordered_at', rec.ordered_at
           );
           PERFORM pg_notify('orders_events', payload::text);
+
+          -- AFTER 트리거는 반환값이 사용되지 않으므로 NULL 반환으로 종결
+          RETURN NULL;
         END;
         $$ LANGUAGE plpgsql;
         """)
+
+        # 트리거 재생성(있으면 지우고 다시)
         cur.execute(f'DROP TRIGGER IF EXISTS trg_orders_notify_ins ON "{table}";')
         cur.execute(f'''
         CREATE TRIGGER trg_orders_notify_ins
