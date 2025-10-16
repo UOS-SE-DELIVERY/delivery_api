@@ -1,0 +1,141 @@
+@startuml MrDinner_UseCases_All
+title HI
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #FBFBFF
+  BorderColor #555
+}
+actor Guest
+actor Customer
+actor Staff
+actor Owner
+actor Manager
+actor Kitchen
+actor Delivery
+actor "Payment Gateway" as PaymentGateway
+actor "Voice Recognition Service" as VoiceService
+
+Staff <|-- Owner
+Staff <|-- Manager
+Staff <|-- Kitchen
+Staff <|-- Delivery
+
+rectangle "MrDinner System" {
+  ' Customer
+  usecase "Browse Menu" as UC_BrowseMenu
+  usecase "View Dinner Detail" as UC_ViewDinnerDetail
+  usecase "Price Preview" as UC_PricePreview
+  usecase "Register Account" as UC_Register
+  usecase "Login" as UC_Login
+  usecase "Logout" as UC_Logout
+  usecase "Manage Profile Consent" as UC_ManageConsent
+  usecase "Update Profile" as UC_UpdateProfile
+  usecase "Place Order" as UC_PlaceOrder
+  usecase "Start Voice Order" as UC_StartVoiceOrder <<Planned>>
+  usecase "Apply Coupon" as UC_ApplyCoupon <<Planned>>
+  usecase "Checkout (Card Payment)" as UC_Checkout <<Planned>>
+  usecase "Track Order" as UC_TrackOrder
+  usecase "View Order History" as UC_ViewOrderHistory
+
+  ' Staff (common)
+  usecase "Staff Login" as UC_StaffLogin
+  usecase "Staff Logout" as UC_StaffLogout
+  usecase "View My Profile" as UC_StaffMe
+  usecase "Subscribe Order Events (SSE)" as UC_SubscribeSSE
+
+  ' Owner/Manager
+  usecase "View Orders" as UC_ViewOrders <<Planned>>
+  usecase "Accept Order" as UC_AcceptOrder <<Planned>>
+  usecase "Mark Ready" as UC_MarkReady <<Planned>>
+  usecase "Dispatch Delivery" as UC_Dispatch <<Planned>>
+  usecase "Mark Delivered" as UC_MarkDelivered <<Planned>>
+  usecase "Cancel Order (with Reason)" as UC_CancelOrder <<Planned>>
+  usecase "Manage Coupons" as UC_ManageCoupons
+  usecase "Manage Staff (Basic)" as UC_ManageStaff <<Planned>>
+  usecase "Adjust Inventory" as UC_AdjustInventory <<Planned>>
+
+  ' Kitchen
+  usecase "View Assigned Orders" as UC_ViewAssigned <<Planned>>
+
+  ' Delivery
+  usecase "View Delivery Queue" as UC_ViewDeliveryQueue <<Planned>>
+  usecase "Start Delivery" as UC_StartDelivery <<Planned>>
+  usecase "Complete Delivery" as UC_CompleteDelivery <<Planned>>
+
+  ' Shifts (all roles)
+  usecase "Start Shift" as UC_StartShift <<Planned>>
+  usecase "Stop Shift" as UC_StopShift <<Planned>>
+  usecase "View My Shifts" as UC_ViewShifts <<Planned>>
+}
+
+' Guest/Customer
+Guest --> UC_BrowseMenu
+Guest --> UC_ViewDinnerDetail
+Guest --> UC_PricePreview
+Guest --> UC_Register
+Guest --> UC_Login
+
+Customer --> UC_Login
+Customer --> UC_Logout
+Customer --> UC_ManageConsent
+Customer --> UC_UpdateProfile
+Customer --> UC_PlaceOrder
+Customer --> UC_StartVoiceOrder
+Customer --> UC_ApplyCoupon
+Customer --> UC_Checkout
+Customer --> UC_TrackOrder
+Customer --> UC_ViewOrderHistory
+
+' External
+PaymentGateway --> UC_Checkout
+VoiceService --> UC_StartVoiceOrder
+
+' Staff common
+Staff --> UC_StaffLogin
+Staff --> UC_StaffLogout
+Staff --> UC_StaffMe
+Staff --> UC_SubscribeSSE
+Staff --> UC_StartShift
+Staff --> UC_StopShift
+Staff --> UC_ViewShifts
+
+' Owner/Manager
+Owner --> UC_ViewOrders
+Owner --> UC_AcceptOrder
+Owner --> UC_MarkReady
+Owner --> UC_Dispatch
+Owner --> UC_MarkDelivered
+Owner --> UC_CancelOrder
+Owner --> UC_ManageCoupons
+Owner --> UC_ManageStaff
+Owner --> UC_AdjustInventory
+
+Manager --> UC_ViewOrders
+Manager --> UC_AcceptOrder
+Manager --> UC_MarkReady
+Manager --> UC_Dispatch
+Manager --> UC_MarkDelivered
+Manager --> UC_CancelOrder
+Manager --> UC_ManageCoupons
+Manager --> UC_ManageStaff
+Manager --> UC_AdjustInventory
+
+' Kitchen
+Kitchen --> UC_ViewAssigned
+Kitchen --> UC_AcceptOrder
+Kitchen --> UC_MarkReady
+
+' Delivery
+Delivery --> UC_ViewDeliveryQueue
+Delivery --> UC_StartDelivery
+Delivery --> UC_CompleteDelivery
+
+' Simple relations
+UC_ApplyCoupon ..> UC_PlaceOrder : <<extend>>
+UC_PlaceOrder ..> UC_Checkout : <<include>>
+
+@enduml
