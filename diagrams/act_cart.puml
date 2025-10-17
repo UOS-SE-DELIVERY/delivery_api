@@ -1,0 +1,50 @@
+@startuml Activity_Manage_Cart
+title Activity Diagram - Manage Cart
+
+|Customer App|
+start
+:Open cart;
+:View cart items;
+
+if () then ([Add])
+  :Pick item & options;
+elseif () then ([Update])
+  :Edit quantity/options;
+else ([Remove])
+  :Select item to remove;
+endif
+
+|Orders API|
+:Apply cart change (add/update/remove);
+:Validate constraints;
+if () then ([Valid])
+  :Compute base totals;
+  |Promotion Service|
+  :Evaluate discounts (membership(auto) + coupon);
+  if () then ([Coupon valid])
+    :Calculate discounts w/ coupon;
+  else ([Invalid/None])
+    :Calculate discounts w/o coupon;
+  endif
+  |Orders API|
+  :Merge totals (base - discounts);
+  :Return updated cart snapshot + preview totals;
+else ([Invalid])
+  :Return constraint error;
+endif
+
+|Customer App|
+if () then ([Invalid])
+  :Show validation error;
+  :Back to cart;
+else ([Valid])
+  :Refresh cart view (items + totals);
+endif
+
+if () then ([Order now])
+  :Go to Place Order;
+else ([Keep shopping])
+  :Continue shopping;
+endif
+stop
+@enduml

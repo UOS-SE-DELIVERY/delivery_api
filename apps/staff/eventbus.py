@@ -6,6 +6,7 @@ import logging
 import re
 import select
 import time
+import os
 from typing import Any, Dict, Iterator, List, Optional
 
 import psycopg
@@ -23,7 +24,6 @@ LISTEN_TIMEOUT: float = float(getattr(settings, "ORDERS_LISTEN_TIMEOUT", 15.0))
 # ---------------- helpers ----------------
 
 def _dsn() -> str:
-    """settings.DATABASES['default']에서 libpq DSN 구성 (PORT 포함)."""
     db = settings.DATABASES["default"]
     parts: List[str] = []
     if db.get("NAME"):
@@ -114,16 +114,6 @@ def _drain_notifies(conn: psycopg.Connection) -> List[Any]:
 # ---------------- public API ----------------
 
 def iter_order_notifications() -> Iterator[Dict[str, Any]]:
-    """
-    PostgreSQL LISTEN 기반 실시간 이벤트 generator.
-    - 최초 1회 diagnostic 이벤트 방출(클라이언트 연결 확인용)
-    - 이후 트리거의 JSON payload를 그대로 전달
-      * payload에 'event'가 없으면:
-        - 구트리거의 'op' 값(INSERT/UPDATE/DELETE)을 사람이 읽기 쉬운 이벤트명으로 매핑
-        - 그래도 없으면 채널명을 event로 사용
-    - 모든 bytes는 str로 정규화(뷰에서 json.dumps 안전)
-    - 연결 오류 시 지수 백오프로 재연결
-    """
     dsn = _dsn()
     chans = [_validate_channel(c) for c in CHANNELS]
     backoff = 0.5
@@ -155,6 +145,8 @@ def iter_order_notifications() -> Iterator[Dict[str, Any]]:
                 "port": port,
                 "db": settings.DATABASES["default"].get("NAME"),
                 "user": settings.DATABASES["default"].get("USER"),
+                "pid": os.getpid(),
+                "notify_impl": "queue+libpq",
             }
             yield _jsonable(diag)
 

@@ -1,0 +1,53 @@
+@startuml Activity_Place_Order_CurrentV2
+title Activity Diagram - Place Order (GUI)
+
+|Customer App|
+start
+  |Customer App|
+  :Build/Edit order draft (items/options/qty);
+
+  |Catalog API|
+  :Fetch add-on suggestions (cards);
+  :Return suggestions;
+
+  |Customer App|
+  :Show add-on cards;
+
+  if () then ([Select add-on card])
+    :Add add-on to draft;
+    |Customer App|
+    :Refresh review (items + totals + cards);
+  else ([else])
+  endif
+
+  |Customer App|
+  :Draft ready;
+
+
+|Orders API|
+:Compute base totals;
+
+|Promotion Service|
+:Evaluate discounts (membership(auto) + coupon);
+if () then ([Coupon present AND valid])
+  :Calculate discounts w/ coupon;
+else ([else])
+  :Calculate discounts w/o coupon;
+endif
+
+|Orders API|
+:Merge totals (base - discounts);
+:Return preview totals;
+
+
+|Customer App|
+:Submit order;
+
+|Orders API|
+:Create order;
+:Return {order_id, status=pending};
+
+|Customer App|
+:Show confirmation (order_id);
+stop
+@enduml

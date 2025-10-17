@@ -1,4 +1,3 @@
-# apps/staff/migrations/0006_username.py  (번호/파일명은 실제 환경에 맞게)
 from django.db import migrations, models
 
 def backfill_usernames(apps, schema_editor):
@@ -9,7 +8,7 @@ def backfill_usernames(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("staff", "0005_password"),  # 직전 파일로 맞추세요
+        ("staff", "0005_password"),
     ]
     operations = [
         migrations.AddField(
@@ -20,7 +19,6 @@ class Migration(migrations.Migration):
 
         migrations.RunPython(backfill_usernames, migrations.RunPython.noop),
 
-        # 3) 과거 실패로 남은 인덱스 안전 제거 (이름이 다르면 바꿔 적으세요)
         migrations.RunSQL(
             "DROP INDEX IF EXISTS public.staff_username_9bca0107_like; "
             "DROP INDEX IF EXISTS public.staff_username_9bca0107;",

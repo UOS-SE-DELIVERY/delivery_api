@@ -1,0 +1,54 @@
+@startuml Activity_Place_Order_Voice
+title Activity Diagram - Place Order (Voice)
+
+|Customer App|
+start
+:Select Voice mode;
+:Open mic & start stream;
+
+|Voice Service|
+:Open streaming session;
+while () is ([More audio])
+  :Receive audio chunk;
+  :ASR partial text;
+  :NLU extract slots/intents;
+endwhile ([No more audio])
+:Close streaming session;
+:Return final intents & slots;
+
+|Customer App|
+:Build order draft from slots;
+:Show draft summary & captions;
+if () then ([User edits])
+  :Edit draft in GUI (items/options/qty);
+else ([No edit])
+endif
+:Draft ready;
+
+|Orders API|
+:Compute base totals;
+
+|Promotion Service|
+:Evaluate discounts (membership(auto) + coupon);
+if () then ([Coupon valid])
+  :Calculate discounts w/ coupon;
+else ([Invalid/None])
+  :Calculate discounts w/o coupon;
+endif
+
+|Orders API|
+:Merge totals (base - discounts);
+:Return preview totals;
+
+|Customer App|
+:Show review (items + totals);
+:Submit order;
+
+|Orders API|
+:Create order;
+:Return {order_id, status=pending};
+
+|Customer App|
+:Show confirmation (order_id);
+stop
+@enduml
