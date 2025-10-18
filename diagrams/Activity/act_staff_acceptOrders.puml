@@ -1,0 +1,26 @@
+@startuml Activity_Staff_OrderAction_StatusChange
+title Activity - Order Action
+
+|Staff App|
+start
+:Open order detail (from View Orders);
+
+while () is ([Choose action])
+  if () then ([Status change (Accept/Ready/Dispatch/Delivered/Cancel)])
+    if () then ([Not allowed])
+      :Show not allowed;
+    else ([Allowed])
+      |Orders API|
+      :Apply status change;
+      |Orders API|
+      :Emit order event;
+      |Event Bus (SSE)|
+      :Push event;
+      |Staff App|
+      :Show success;
+    endif
+  else ([Back])
+  endif
+endwhile ([Done])
+stop
+@enduml

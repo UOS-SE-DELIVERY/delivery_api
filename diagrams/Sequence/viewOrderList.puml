@@ -1,0 +1,51 @@
+@startuml ViewOrderListSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "view:OrderListAPIView" as listv
+participant "serializer:OrderSummarySerializer" as sumsz
+participant "order:Order" as order
+participant ":db" as db
+
+Customer -> fe : Open Order History
+fe -> listv : GET /api/orders?page=&status=&from=&to=
+activate listv
+listv -> order : build_queryset(customer, filters)
+order -> db : SELECT Order WHERE customer_id=? ORDER BY created_at DESC LIMIT ?
+db --> order : orders[]
+order --> listv : queryset
+listv -> sumsz : serialize(orders, many=True)
+sumsz --> listv : results
+listv --> fe : 200 OK {results, pagination}
+deactivate listv
+
+opt Next page
+  fe -> listv : GET /api/orders?page=next
+  activate listv
+  listv -> order : build_queryset(customer, filters)
+  order -> db : SELECT Order ... LIMIT ?
+  db --> order : orders[]
+  order --> listv : queryset
+  listv -> sumsz : serialize(many=True)
+  sumsz --> listv : results
+  listv --> fe : 200 OK {results, pagination}
+  deactivate listv
+end
+
+opt Click an order (navigate to detail)
+  fe -> listv : GET /api/orders/{order_id}
+end
+@enduml

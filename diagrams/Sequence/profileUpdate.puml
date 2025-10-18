@@ -1,0 +1,59 @@
+@startuml MeUpdateSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "auth:JWTAuthentication" as jwt
+participant "viewset:MeViewSet" as mev
+participant "serializer:MeUpdateSerializer" as upsz
+participant "customer:Customer" as customer
+participant ":db" as db
+
+Customer -> fe : Edit {address?, real_name?, phone?, profile_consent?}
+fe -> jwt : authenticate(access)
+jwt --> fe : ok
+fe -> mev : PATCH /auth/me (JSON)
+activate mev
+mev -> upsz : validate(partial)
+alt invalid payload
+  upsz --> mev : ValidationError {field_errors}
+  mev --> fe : 400 Bad Request {errors}
+  deactivate mev
+  fe -> fe : showValidationErrors(errors)
+else valid
+  upsz --> mev : {fields}
+  alt profile_consent == false and (real_name or phone provided)
+    mev --> fe : 403 Forbidden {detail}
+    deactivate mev
+    fe -> fe : showValidationErrors(errors)
+  else toggle consent
+    alt set profile_consent = false
+      mev -> customer : clear_PII_and_addresses()
+      customer -> db : UPDATE Customer
+      db --> customer : ok
+    else set profile_consent = true
+      mev -> customer : set_consent_true()
+      customer -> db : UPDATE Customer
+      db --> customer : ok
+    end
+    mev -> customer : apply_updates(fields)
+    customer -> db : UPDATE Customer
+    db --> customer : ok
+    customer --> mev : instance
+    mev --> fe : 200 OK {profile}
+    deactivate mev
+  end
+end
+@enduml

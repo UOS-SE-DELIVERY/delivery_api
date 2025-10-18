@@ -1,0 +1,44 @@
+@startuml ManageCart_ModifyLineSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "storage:CartStore" as cart
+participant "view:OrderPricePreviewAPIView" as prev
+
+Customer -> fe : Open Cart
+fe -> cart : load()
+cart --> fe : cart_state
+
+alt Update line (qty/options)
+  Customer -> fe : Edit line
+  fe -> cart : patch(line_id, changes)
+  cart --> fe : cart_state
+  opt Include: Price Preview
+    fe -> prev : POST /api/orders/price/preview (cart_state)
+    prev --> fe : 200 OK {totals}
+  end
+else Remove line
+  Customer -> fe : Remove line
+  fe -> cart : remove(line_id)
+  cart --> fe : cart_state
+  opt Include: Price Preview
+    fe -> prev : POST /api/orders/price/preview (cart_state)
+    prev --> fe : 200 OK {totals}
+  end
+end
+
+fe --> Customer : Render updated cart
+@enduml

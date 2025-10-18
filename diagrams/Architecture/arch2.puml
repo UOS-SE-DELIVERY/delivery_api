@@ -1,0 +1,170 @@
+@startuml MrDinner_Architecture_Layered_v3
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam componentStyle rectangle
+skinparam rectangleBorderColor #555
+skinparam rectangleBackgroundColor #FBFBFF
+skinparam databaseBackgroundColor #FFFFFF
+skinparam databaseBorderColor #555
+' top to bottom direction
+left to right direction
+top to bottom direction
+
+rectangle "Clients (React)" as L1 {
+  [WebApp Customer SPA] as web
+  [StaffApp Staff SPA] as staffui
+  [CartStore Client State] as cart <<client-storage>>
+  [Voice Recognition Service] as voice <<external>>
+}
+
+rectangle "Presentation (DRF Views & Serializers)" as L2 {
+  package Accounts_Views {
+    [RegisterView]
+    [LoginView]
+    [LogoutView]
+    [ProfileView]
+  }
+  package Catalog_Views {
+    [CatalogBootstrapAPIView]
+    [ItemDetailWithExpandAPIView]
+    [AddonsListPageAPIView]
+    [DinnerFullAPIView]
+  }
+  package Orders_Views {
+    [OrderPricePreviewAPIView]
+    [OrderCreateAPIView]
+    [OrderListAPIView]
+    [OrderDetailAPIView]
+    [OrderStatusChangeAPIView]
+  }
+  package StaffOps_Views {
+    [StaffLoginView]
+    [StaffLogoutView]
+    [StaffMeView]
+    [StaffOrderDetailView]
+    [CouponsView]
+    [CouponDetailView]
+    [MembershipsView]
+    [MembershipDetailView]
+    [OrdersSSEView]
+  }
+  package Promotion_Views {
+    [CouponAdmin]
+    [MembershipAdmin]
+  }
+  package Serializers_All {
+    [Account Serializers]
+    [Catalog Serializers]
+    [Order Serializers]
+    [Staff Serializers]
+    [Promotion Serializers]
+  }
+}
+
+rectangle "Application / Domain" as L3 {
+  [Pricing] as pricing
+  [PromotionServices] as promosvc
+  [CatalogSelectors] as selectors
+  [StaffPermissions] as staffperm
+  [JWTAuth Customer] as custjwt
+  [JWTAuth Staff] as staffjwt
+  [OrderEventBus] as eventbus
+}
+
+rectangle "Model (ORM)" as L4 {
+  package Accounts_Models as accModels { 
+    [Customer] 
+  }
+  package StaffOps_Models as staffModels { 
+    [Staff] 
+    [StaffRole] 
+    [Shift] 
+  }
+  package Catalog_Models as catModels {
+    [MenuCategory]
+    [MenuItem]
+    [ServingStyle]
+    [DinnerType]
+    [DinnerOptionGroup]
+    [DinnerOption]
+    [ItemTag]
+  }
+  package Orders_Models as ordModels {
+    [Order]
+    [OrderDinner]
+    [OrderDinnerItem]
+    [OrderDinnerOption]
+    [OrderItemOption]
+  }
+  package Promotion_Models as promoModels { 
+    [Coupon]
+    [CouponRedemption] 
+    [Membership] 
+  }
+}
+
+rectangle "Infrastructure" as L5 {
+  database "PostgreSQL" as db
+  [SSE Channels] as sse
+  [JWT Secrets] as jwtsec
+}
+
+' ==== Flows (expanded) ====
+
+' Clients -> Presentation
+web --> Accounts_Views
+web --> Catalog_Views
+web --> Orders_Views
+staffui --> StaffOps_Views
+staffui --> Promotion_Views
+voice --> web
+web ..> cart
+
+' Views -> Serializers (payload parse/format)
+Accounts_Views ..> Serializers_All
+Catalog_Views ..> Serializers_All
+Orders_Views ..> Serializers_All
+StaffOps_Views ..> Serializers_All
+Promotion_Views ..> Serializers_All
+
+' Views -> Auth/Permissions
+Accounts_Views ..> custjwt
+Orders_Views ..> custjwt
+StaffOps_Views ..> staffjwt
+StaffOps_Views ..> staffperm
+
+' Views -> Application services
+Orders_Views --> pricing
+Orders_Views --> promosvc
+Catalog_Views ..> selectors
+StaffOps_Views ..> eventbus
+
+' Services -> Models
+pricing --> catModels
+promosvc --> promoModels
+
+' Views -> Models
+Accounts_Views --> accModels
+Catalog_Views --> catModels
+Orders_Views --> ordModels
+StaffOps_Views --> staffModels
+Promotion_Views --> promoModels
+
+' Persistence
+accModels --> db
+catModels --> db
+ordModels --> db
+staffModels --> db
+promoModels --> db
+
+' SSE path
+Orders_Views --> eventbus
+eventbus --> sse
+staffui ..> sse
+
+' JWT secret store
+custjwt --> jwtsec
+staffjwt --> jwtsec
+
+
+@enduml

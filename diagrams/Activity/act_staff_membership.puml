@@ -1,0 +1,40 @@
+@startuml Activity_OwnerManager_Manage_Memberships
+title Activity - Manage Memberships
+
+|Staff App|
+start
+:Open "Manage Memberships";
+
+if () then ([role in {Owner,Manager}])
+else ([Not allowed])
+  :Show not allowed;
+  stop
+endif
+
+|Promotion Service|
+:Fetch membership plans;
+:Return list;
+
+|Staff App|
+while ()
+    |Staff App|
+    :Show membership plans;
+
+    if () then ([Update/Create])
+        :Select or Enter a plan;
+        :Update/Enter fields;
+    else ([Deactivate])
+        |Staff App|
+        :Select plan;
+    endif
+
+    |Promotion Service|
+    :Validate and Save;
+    :Fetch membership plans;
+    :Return list;
+endwhile ([Back])
+
+|Staff App|
+:Close "Manage Memberships";
+stop
+@enduml

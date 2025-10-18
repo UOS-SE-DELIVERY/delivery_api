@@ -1,0 +1,128 @@
+@startuml ManageMemberships_MutationsSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:MembershipAdminCreateAPIView" as createv
+participant "view:MembershipAdminDetailAPIView" as detailv
+participant "permissions:StaffPermissions" as perm
+participant "serializer:MembershipCreateSerializer" as createsz
+participant "serializer:MembershipUpdateSerializer" as upsz
+participant "serializer:MembershipSummarySerializer" as sumsz
+participant "membership:Membership" as membership
+participant ":db" as db
+
+opt Create Membership
+  Staff -> fe : Submit form {name, tier, discount_percent?, max_discount_cents?, start_at?, end_at?, conditions?}
+  fe -> createv : POST /staff/admin/promo/memberships {payload}
+  activate createv
+  createv -> perm : check_permission(staff,"membership:create")
+  alt forbidden
+    perm --> createv : denied
+    createv --> fe : 403 Forbidden
+    deactivate createv
+  else allowed
+    perm --> createv : ok
+    createv -> createsz : validate(payload)
+    alt invalid
+      createsz --> createv : ValidationError {field_errors}
+      createv --> fe : 400 Bad Request {errors}
+      deactivate createv
+    else valid
+      createsz --> createv : normalized
+      createv -> membership : create(normalized)
+      membership -> db : INSERT Membership
+      db --> membership : membership_id
+      membership --> createv : instance
+      createv -> sumsz : serialize(instance)
+      sumsz --> createv : membership_json
+      createv --> fe : 201 Created {membership: membership_json}
+      deactivate createv
+    end
+  end
+end
+
+opt Update Membership
+  Staff -> fe : Submit changes {fields}
+  fe -> detailv : PATCH /staff/admin/promo/memberships/{id} {fields}
+  activate detailv
+  detailv -> perm : check_permission(staff,"membership:update")
+  alt forbidden
+    perm --> detailv : denied
+    detailv --> fe : 403 Forbidden
+    deactivate detailv
+  else allowed
+    perm --> detailv : ok
+    detailv -> membership : get_by_id(id)
+    membership -> db : SELECT Membership WHERE id=?
+    db --> membership : membership or none
+    alt not found
+      membership --> detailv : not_found
+      detailv --> fe : 404 Not Found
+      deactivate detailv
+    else found
+      membership --> detailv : instance
+      detailv -> upsz : validate(fields)
+      alt invalid
+        upsz --> detailv : ValidationError {field_errors}
+        detailv --> fe : 400 Bad Request {errors}
+        deactivate detailv
+      else valid
+        upsz --> detailv : normalized
+        detailv -> membership : update(id, normalized)
+        membership -> db : UPDATE Membership SET ... WHERE id=?
+        db --> membership : ok
+        membership --> detailv : updated
+        detailv -> sumsz : serialize(updated)
+        sumsz --> detailv : membership_json
+        detailv --> fe : 200 OK {membership: membership_json}
+        deactivate detailv
+      end
+    end
+  end
+end
+
+opt Toggle Active
+  Staff -> fe : Toggle active {active}
+  fe -> detailv : POST /staff/admin/promo/memberships/{id}/toggle {active}
+  activate detailv
+  detailv -> perm : check_permission(staff,"membership:toggle")
+  alt forbidden
+    perm --> detailv : denied
+    detailv --> fe : 403 Forbidden
+    deactivate detailv
+  else allowed
+    perm --> detailv : ok
+    detailv -> membership : get_by_id(id)
+    membership -> db : SELECT Membership WHERE id=?
+    db --> membership : membership or none
+    alt not found
+      membership --> detailv : not_found
+      detailv --> fe : 404 Not Found
+      deactivate detailv
+    else found
+      membership --> detailv : instance
+      detailv -> membership : set_active(id, active)
+      membership -> db : UPDATE Membership SET active=? WHERE id=?
+      db --> membership : ok
+      membership --> detailv : updated
+      detailv -> sumsz : serialize(updated)
+      sumsz --> detailv : membership_json
+      detailv --> fe : 200 OK {membership: membership_json}
+      deactivate detailv
+    end
+  end
+end
+@enduml

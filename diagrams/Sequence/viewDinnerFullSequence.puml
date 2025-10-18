@@ -1,0 +1,56 @@
+@startuml ViewDinnerFullSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Guest
+participant "client:WebApp" as fe
+participant "view:DinnerFullAPIView" as dinnerv
+participant "dinner:DinnerType" as dinner
+participant "default:DinnerTypeDefaultItem" as defitem
+participant "style:ServingStyle" as style
+participant "optgrp:DinnerOptionGroup" as optgrp
+participant "opt:DinnerOption" as opt
+participant "serializer:DinnerFullSerializer" as dinnersz
+participant ":db" as db
+
+fe -> dinnerv : GET /api/catalog/dinners/{dinner_code}
+activate dinnerv
+dinnerv -> dinner : get_by_code_active(dinner_code)
+dinner -> db : SELECT DinnerType WHERE code AND active
+alt not found
+  db --> dinner : none
+  dinner --> dinnerv : not_found
+  dinnerv --> fe : 404 Not Found
+  deactivate dinnerv
+else found
+  db --> dinner : dinner
+  dinner --> dinnerv : dinner
+  dinnerv -> defitem : list_defaults(dinner)
+  defitem -> db : SELECT DinnerTypeDefaultItem JOIN MenuItem WHERE MenuItem.active ORDER BY MenuItem.name
+  db --> defitem : default_items
+  defitem --> dinnerv : default_items
+  dinnerv -> style : list_allowed(dinner)
+  style -> db : SELECT ServingStyle WHERE allowed_for_dinner = dinner
+  db --> style : allowed_styles
+  style --> dinnerv : allowed_styles
+  dinnerv -> optgrp : list_groups(dinner)
+  optgrp -> db : SELECT DinnerOptionGroup WHERE active AND dinner = dinner ORDER BY rank,name WITH prefetch DinnerOption WHERE DinnerOption.active
+  db --> optgrp : groups_with_options
+  optgrp --> dinnerv : option_groups
+  dinnerv -> dinnersz : serialize({dinner, default_items, allowed_styles, option_groups})
+  dinnersz --> dinnerv : payload
+  dinnerv --> fe : 200 OK payload
+  deactivate dinnerv
+end
+@enduml

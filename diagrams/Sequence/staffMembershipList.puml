@@ -1,0 +1,47 @@
+@startuml ManageMemberships_ListSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:MembershipAdminListAPIView" as listv
+participant "serializer:MembershipSummarySerializer" as sumsz
+participant "membership:Membership" as membership
+participant ":db" as db
+
+Staff -> fe : Open Memberships
+fe -> listv : GET /staff/admin/promo/memberships?query=&status=&page=
+activate listv
+listv -> membership : build_queryset(filters)
+membership -> db : SELECT Membership ORDER BY created_at DESC LIMIT ? OFFSET ?
+db --> membership : memberships[]
+membership --> listv : queryset
+listv -> sumsz : serialize(memberships, many=True)
+sumsz --> listv : results
+listv --> fe : 200 OK {results}
+deactivate listv
+
+opt Change filter/sort/page
+  fe -> listv : GET /staff/admin/promo/memberships?...
+  activate listv
+  listv -> membership : build_queryset(filters)
+  membership -> db : SELECT Membership ... LIMIT ? OFFSET ?
+  db --> membership : memberships[]
+  membership --> listv : queryset
+  listv -> sumsz : serialize(many=True)
+  sumsz --> listv : results
+  listv --> fe : 200 OK {results}
+  deactivate listv
+end
+@enduml

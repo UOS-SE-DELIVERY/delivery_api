@@ -1,0 +1,44 @@
+@startuml StartVoiceOrder_ToCartSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "voice:VoiceRecognitionService" as voice
+participant "storage:CartStore" as cart
+
+Customer -> fe : Select Voice mode
+fe -> voice : openStreamingSession()
+activate voice
+loop while speaking
+  fe -> voice : sendAudioChunk()
+  voice -> voice : asrAndNluPartial()
+  voice --> fe : partialResult {text,intents?,slots?}
+end
+fe -> voice : closeStream()
+voice --> fe : finalIntentsAndSlots
+deactivate voice
+
+fe -> fe : buildOrderDraft(slots)
+alt user edits
+  Customer -> fe : Edit draft (items/options/qty)
+  fe -> fe : applyEdits()
+else no edit
+end
+
+fe -> cart : addOrMerge(draft_lines)
+cart --> fe : cart_state
+fe -> fe : navigate("/cart")
+fe --> Customer : Show Cart (handoff to ViewCartSequence)
+@enduml

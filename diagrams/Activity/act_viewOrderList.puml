@@ -1,0 +1,47 @@
+@startuml Activity_View_Order_List
+title Activity Diagram - View Order List (Customer)
+
+|Customer App|
+start
+:Open "My Orders";
+
+|Orders API|
+:Fetch order list;
+:Return list;
+
+|Customer App|
+:Show order list;
+
+while () is ([Select action])
+  if () then ([Open detail])
+    :Go to View Order Detail (UC);
+    if () then ([Modify])
+      :Go to Modify Order (UC);
+    else ([Back])
+    endif
+    :Back to list;
+
+  elseif () then ([Track])
+    :Open tracking view;
+    |Orders API|
+    :Fetch tracking status;
+    :Return status timeline;
+    |Customer App|
+    :Show tracking status;
+    while () is ([Refresh])
+      |Orders API|
+      :Fetch tracking status;
+      :Return status timeline;
+      |Customer App|
+      :Update status;
+    endwhile ([Close])
+    :Close tracking;
+    :Back to list;
+
+    |Customer App|
+    :Append to list;
+  endif
+endwhile ([Done])
+
+stop
+@enduml

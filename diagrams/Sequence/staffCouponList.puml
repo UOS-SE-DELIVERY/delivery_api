@@ -1,0 +1,47 @@
+@startuml ManageCoupons_ListSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:CouponAdminListAPIView" as listv
+participant "serializer:CouponSummarySerializer" as sumsz
+participant "coupon:Coupon" as coupon
+participant ":db" as db
+
+Staff -> fe : Open Coupons
+fe -> listv : GET /staff/admin/promo/coupons?query=&status=&page=
+activate listv
+listv -> coupon : build_queryset(filters)
+coupon -> db : SELECT Coupon ORDER BY created_at DESC LIMIT ? OFFSET ?
+db --> coupon : coupons[]
+coupon --> listv : queryset
+listv -> sumsz : serialize(coupons, many=True)
+sumsz --> listv : results
+listv --> fe : 200 OK {results, pagination}
+deactivate listv
+
+opt Change filter/sort/page
+  fe -> listv : GET /staff/admin/promo/coupons?...
+  activate listv
+  listv -> coupon : build_queryset(filters)
+  coupon -> db : SELECT Coupon ... LIMIT ? OFFSET ?
+  db --> coupon : coupons[]
+  coupon --> listv : queryset
+  listv -> sumsz : serialize(many=True)
+  sumsz --> listv : results
+  listv --> fe : 200 OK {results, pagination}
+  deactivate listv
+end
+@enduml

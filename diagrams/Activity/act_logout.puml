@@ -1,0 +1,16 @@
+@startuml Activity_Customer_Logout
+title Activity Diagram - Customer Logout
+
+|Customer App|
+start
+:Logout;
+
+|Accounts API|
+:Clear session/token;
+:Return ok;
+
+|Customer App|
+:Clear local session;
+:Redirect to guest home;
+stop
+@enduml

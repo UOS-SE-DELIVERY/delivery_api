@@ -1,0 +1,79 @@
+@startuml Activity_View_Order_Detail
+title Activity Diagram - View Order Detail (includes Modify Order)
+
+|Customer App|
+start
+:Open order detail;
+
+|Orders API|
+:Fetch order detail;
+:Return order detail;
+
+|Customer App|
+:Show order detail;
+
+while () is ([Select action])
+  if () then ([Modify])
+    if () then ([Pending])
+      ' ===== Modify sub-flow (edit -> preview -> submit/cancel) =====
+      while () is ([Edit more])
+        :Edit items (add/remove/update);
+
+        |Orders API|
+        :Compute base totals;
+
+        |Promotion Service|
+        :Evaluate discounts (membership(auto) + coupon);
+        if () then ([Coupon valid])
+          :Calculate discounts w/ coupon;
+        else ([Invalid/None])
+          :Calculate discounts w/o coupon;
+        endif
+
+        ' ---- explicit merge inside Promotion to avoid crossing ----
+
+        |Orders API|
+        :Merge totals (base - discounts);
+        :Return preview totals;
+
+        |Customer App|
+        :Show updated totals;
+      endwhile ([Ready to submit])
+
+      if () then ([Submit modification])
+        |Orders API|
+        :Update order;
+        :Return updated order;
+
+        |Customer App|
+        :Show updated confirmation;
+        :Refresh order detail;
+      else ([Cancel])
+        :Discard changes;
+      endif
+    else ([Not pending])
+      :Show not allowed (modification denied);
+    endif
+
+  elseif () then ([Back])
+    :Close detail;
+    stop
+
+  else ([Track])
+    :Open tracking view;
+    |Orders API|
+    :Fetch tracking status;
+    :Return status timeline;
+    |Customer App|
+    :Show tracking status;
+    while () is ([Refresh])
+      |Orders API|
+      :Fetch tracking status;
+      :Return status timeline;
+      |Customer App|
+      :Update status;
+    endwhile ([Close])
+    :Close tracking;
+  endif
+endwhile ([Done])
+@enduml

@@ -1,0 +1,75 @@
+@startuml BrowseMenuSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Guest
+participant "client:WebApp" as fe
+participant "view:CatalogBootstrapAPIView" as bootv
+participant "serializer:CatalogBootstrapSerializer" as bootsz
+participant "view:AddonsListPageAPIView" as addlistv
+participant "selector:CatalogSelectors" as sel
+participant "view:ItemDetailWithExpandAPIView" as itemv
+participant "serializer:ItemDetailResponseSerializer" as itemsz
+participant "item:MenuItem" as item
+participant ":db" as db
+
+Guest -> fe : Open Menu
+fe -> bootv : GET /api/catalog/bootstrap
+activate bootv
+bootv -> db : SELECT MenuCategory WHERE active=True AND parent IS NULL ORDER BY rank,category_id
+db --> bootv : categories
+bootv -> db : SELECT ItemTag ORDER BY name LIMIT 100
+db --> bootv : tags
+bootv -> db : SELECT DinnerType WHERE active=True ORDER BY name
+db --> bootv : dinners
+bootv -> bootsz : serialize({categories,tags,dinners})
+bootsz --> bootv : payload
+bootv --> fe : 200 OK payload
+deactivate bootv
+
+opt Navigate to add-ons page
+  fe -> addlistv : GET /api/catalog/menu/addons/{dinner_code}
+  activate addlistv
+  addlistv -> db : SELECT DinnerType WHERE code=dinner_code AND active=True
+  db --> addlistv : dinner or none
+  alt not found
+    addlistv --> fe : 404 Not Found
+    deactivate addlistv
+  else found
+    addlistv -> sel : addons_candidates_qs(dinner)
+    sel -> db : SELECT MenuItem WHERE active=True AND category='addons' EXCLUDE defaults ORDER BY name
+    db --> sel : items
+    sel --> addlistv : items
+    addlistv --> fe : 200 OK {category,items,meta{count}}
+    deactivate addlistv
+  end
+end
+
+opt Item card clicked
+  fe -> itemv : GET /api/catalog/items/{item_code}?expand=availability,tags
+  activate itemv
+  itemv -> item : build_queryset(select category, prefetch option_groups/options)
+  item -> db : SELECT MenuItem WHERE code=item_code AND active=True WITH prefetch
+  db --> item : menu_item or none
+  alt not found
+    itemv --> fe : 404 Not Found
+    deactivate itemv
+  else found
+    itemv -> itemsz : serialize(menu_item, context={expand})
+    itemsz --> itemv : payload
+    itemv --> fe : 200 OK payload
+    deactivate itemv
+  end
+end
+@enduml

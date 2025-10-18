@@ -1,0 +1,56 @@
+@startuml Activity_View_Cart_FE
+title Activity Diagram - View Cart (Frontend-managed cart)
+
+|Customer App|
+start
+:Open cart;
+:Show items;
+
+|Orders API|
+:Compute base totals;
+
+|Promotion Service|
+:Evaluate discounts (membership(auto) + coupon);
+if () then ([Coupon valid])
+  :Calculate discounts w/ coupon;
+else ([Invalid/None])
+  :Calculate discounts w/o coupon;
+endif
+
+|Orders API|
+:Merge totals (base - discounts);
+:Return preview totals;
+
+|Customer App|
+:Show totals;
+
+while () is ([Edit cart])
+  :Edit items (add/update/remove);
+  :Show items;
+
+  |Orders API|
+  :Recompute base totals;
+
+  |Promotion Service|
+  :Evaluate discounts (membership(auto) + coupon);
+  if () then ([Coupon valid])
+    :Calculate discounts w/ coupon;
+  else ([Invalid/None])
+    :Calculate discounts w/o coupon;
+  endif
+
+  |Orders API|
+  :Merge totals (base - discounts);
+  :Return preview totals;
+
+  |Customer App|
+  :Show updated totals;
+endwhile ([Done])
+
+if () then ([Order now])
+  :Go to Place Order;
+else ([Close])
+  :Close cart;
+endif
+stop
+@enduml

@@ -1,0 +1,47 @@
+@startuml ManageStaff_ListSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:StaffAdminListAPIView" as listv
+participant "serializer:StaffSummarySerializer" as sumsz
+participant "staff:Staff" as staff
+participant ":db" as db
+
+Staff -> fe : Open Manage Staff
+fe -> listv : GET /staff/admin/staff?query=&role=&active=&page=
+activate listv
+listv -> staff : build_queryset(filters)
+staff -> db : SELECT Staff ORDER BY created_at DESC LIMIT ? OFFSET ?
+db --> staff : staff_list
+staff --> listv : queryset
+listv -> sumsz : serialize(staff_list, many=True)
+sumsz --> listv : results
+listv --> fe : 200 OK {results, pagination}
+deactivate listv
+
+opt Change filter/sort/page
+  fe -> listv : GET /staff/admin/staff?...
+  activate listv
+  listv -> staff : build_queryset(filters)
+  staff -> db : SELECT Staff ... LIMIT ? OFFSET ?
+  db --> staff : staff_list
+  staff --> listv : queryset
+  listv -> sumsz : serialize(many=True)
+  sumsz --> listv : results
+  listv --> fe : 200 OK {results, pagination}
+  deactivate listv
+end
+@enduml

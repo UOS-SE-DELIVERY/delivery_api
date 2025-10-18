@@ -1,0 +1,37 @@
+@startuml MeRetrieveSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "auth:JWTAuthentication" as jwt
+participant "viewset:MeViewSet" as mev
+participant "serializer:MeSerializer" as mesz
+participant "customer:Customer" as customer
+participant ":db" as db
+
+Customer -> fe : Open Profile
+fe -> jwt : authenticate(access)
+jwt --> fe : ok
+fe -> mev : GET /auth/me
+activate mev
+mev -> customer : get_by_id(sub)
+customer -> db : SELECT Customer WHERE id
+db --> customer : user
+customer --> mev : instance
+mev -> mesz : serialize(user)
+mesz --> mev : profile
+mev --> fe : 200 OK {profile}
+deactivate mev
+@enduml

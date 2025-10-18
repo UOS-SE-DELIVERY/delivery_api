@@ -1,0 +1,101 @@
+@startuml StaffViewMyShiftsSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "auth:JWTAuthentication" as jwt
+participant "view:StaffShiftsListAPIView" as listv
+participant "serializer:StaffShiftSerializer" as shiftsz
+participant "view:StartShiftAPIView" as startv
+participant "serializer:ShiftStartSerializer" as startsz
+participant "view:StopShiftAPIView" as stopv
+participant "serializer:ShiftStopSerializer" as stopsz
+participant "shift:Shift" as shift
+participant ":db" as db
+
+Staff -> fe : Open My Shifts
+fe -> jwt : authenticate(access)
+jwt --> fe : ok
+fe -> listv : GET /staff/me/shifts?from=&to=&page=
+activate listv
+listv -> shift : list_by_staff(staff_id, range, page)
+shift -> db : SELECT Shift WHERE staff_id=? AND start_time BETWEEN ? AND ? ORDER BY start_time DESC LIMIT ? OFFSET ?
+db --> shift : shifts[]
+shift --> listv : queryset
+listv -> shiftsz : serialize(shifts, many=True)
+shiftsz --> listv : results
+listv --> fe : 200 OK {results, pagination}
+deactivate listv
+
+opt Extend: Start Shift
+  Staff -> fe : Tap "Start Shift"
+  fe -> startv : POST /staff/me/shifts/start {location?, note?}
+  activate startv
+  startv -> shift : get_open_shift(staff_id)
+  shift -> db : SELECT Shift WHERE staff_id=? AND end_time IS NULL
+  db --> shift : open_shift? (one or none)
+  alt already on shift
+    shift --> startv : open_exists
+    startv --> fe : 409 Conflict {detail}
+    deactivate startv
+  else not on shift
+    shift --> startv : none
+    startv -> startsz : validate(payload)
+    alt invalid
+      startsz --> startv : ValidationError {field_errors}
+      startv --> fe : 400 Bad Request {errors}
+      deactivate startv
+    else valid
+      startsz --> startv : normalized
+      startv -> shift : create(staff_id, start_time=now, location?, note?)
+      shift -> db : INSERT Shift (...)
+      db --> shift : shift_id
+      shift --> startv : instance
+      startv --> fe : 201 Created {shift}
+      deactivate startv
+    end
+  end
+end
+
+opt Extend: Stop Shift
+  Staff -> fe : Tap "Stop Shift"
+  fe -> stopv : POST /staff/me/shifts/stop {note?}
+  activate stopv
+  stopv -> shift : get_open_shift(staff_id)
+  shift -> db : SELECT Shift WHERE staff_id=? AND end_time IS NULL
+  db --> shift : open_shift? (one or none)
+  alt no open shift
+    shift --> stopv : none
+    stopv --> fe : 409 Conflict {detail}
+    deactivate stopv
+  else exists
+    shift --> stopv : instance
+    stopv -> stopsz : validate(payload)
+    alt invalid
+      stopsz --> stopv : ValidationError {field_errors}
+      stopv --> fe : 400 Bad Request {errors}
+      deactivate stopv
+    else valid
+      stopsz --> stopv : ok
+      stopv -> shift : close(shift_id, end_time=now, note?)
+      shift -> db : UPDATE Shift SET end_time=?, ... WHERE id=?
+      db --> shift : ok
+      shift --> stopv : updated
+      stopv --> fe : 200 OK {shift}
+      deactivate stopv
+    end
+  end
+end
+@enduml

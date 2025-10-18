@@ -1,0 +1,29 @@
+@startuml StaffLogoutSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:StaffLogoutView" as lov
+participant "auth:JWTAuthentication" as jwt
+
+Staff -> fe : Click Logout
+fe -> lov : POST /staff/auth/logout
+activate lov
+lov -> jwt : invalidate(access)
+jwt --> lov : ok
+lov --> fe : 204 No Content\nDelete-Cookie: access
+Deactivate lov
+fe -> fe : redirect("/staff/auth/login")
+@enduml

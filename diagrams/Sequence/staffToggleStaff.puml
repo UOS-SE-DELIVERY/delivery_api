@@ -1,0 +1,53 @@
+@startuml ManageStaff_ToggleActiveSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:StaffAdminDetailAPIView" as detailv
+participant "permissions:StaffPermissions" as perm
+participant "staff:Staff" as staff
+participant "serializer:StaffSummarySerializer" as sumsz
+participant ":db" as db
+
+Staff -> fe : Toggle active {active}
+fe -> detailv : POST /staff/admin/staff/{id}/toggle {active}
+activate detailv
+detailv -> perm : check_permission(staff,"toggle")
+alt forbidden
+  perm --> detailv : denied
+  detailv --> fe : 403 Forbidden
+  deactivate detailv
+else allowed
+  perm --> detailv : ok
+  detailv -> staff : get_by_id(id)
+  staff -> db : SELECT Staff WHERE id=?
+  db --> staff : staff or none
+  alt not found
+    staff --> detailv : not_found
+    detailv --> fe : 404 Not Found
+    deactivate detailv
+  else found
+    staff --> detailv : instance
+    detailv -> staff : set_active(id, active)
+    staff -> db : UPDATE Staff SET active=? WHERE id=?
+    db --> staff : ok
+    staff --> detailv : updated
+    detailv -> sumsz : serialize(updated)
+    sumsz --> detailv : staff_json
+    detailv --> fe : 200 OK {staff: staff_json}
+    deactivate detailv
+  end
+end
+@enduml

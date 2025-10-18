@@ -1,0 +1,30 @@
+@startuml Activity_Staff_Shifts
+title Activity - Staff Shifts
+
+|Staff App|
+start
+:Open My Shifts;
+
+|StaffOps API|
+:Fetch today's/open shifts;
+:Return data;
+
+|Staff App|
+:Show shift status & actions;
+
+if () then ([Shift change (Start/Stop)])
+  if () then ([Not allowed])
+    :Show not allowed;
+  else ([Allowed])
+    |StaffOps API|
+    :Apply shift change (start/stop);
+    |Staff App|
+    :Show success & refresh status;
+  endif
+else ([Back/Close])
+endif
+
+|Staff App|
+:Close My Shifts;
+stop
+@enduml

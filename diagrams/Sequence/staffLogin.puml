@@ -1,0 +1,52 @@
+@startuml StaffLoginSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:StaffLoginView" as logv
+participant "serializer:StaffLoginSerializer" as logsz
+participant "staff:Staff" as staff
+participant "auth:JWTAuthentication" as jwt
+participant ":db" as db
+
+Staff -> fe : Fill form {username, password}
+fe -> logv : POST /staff/auth/login (JSON)
+activate logv
+logv -> logsz : validate(credentials)
+alt invalid payload
+  logsz --> logv : ValidationError {field_errors}
+  logv --> fe : 400 Bad Request {errors}
+  deactivate logv
+  fe -> fe : showValidationErrors(errors)
+else valid
+  logsz --> logv : {username, password}
+  logv -> staff : get_by_username(username)
+  staff -> db : SELECT Staff WHERE username
+  db --> staff : staff or none
+  alt not found or password mismatch
+    staff --> logv : auth_failed
+    logv --> fe : 400 Bad Request {errors}
+    deactivate logv
+    fe -> fe : showAuthError()
+  else ok
+    staff --> logv : staff
+    logv -> jwt : createAccessToken(staff)
+    jwt --> logv : access
+    logv --> fe : 200 OK {access}\nSet-Cookie: access=...
+    deactivate logv
+    fe -> fe : redirect("/staff")
+  end
+end
+@enduml

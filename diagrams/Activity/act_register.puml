@@ -1,0 +1,32 @@
+@startuml Activity_Customer_Register
+title Activity Diagram - Customer Register
+
+|Customer App|
+start
+:Open Register page;
+:Enter basic account info;
+
+if () then ([Enable profile consent])
+  :Enter PII (real name / phone / address);
+else ([Keep consent OFF])
+  :Skip PII (hidden);
+endif
+
+|Accounts API|
+:Create account;
+if () then ([Created])
+  :Return {user_id};
+else ([Conflict/Invalid])
+  :Return error;
+endif
+
+|Customer App|
+if () then ([Conflict/Invalid])
+  :Show error;
+  :Back to Register page;
+else ([Created])
+  :Show success;
+  :Go to Login;
+endif
+stop
+@enduml

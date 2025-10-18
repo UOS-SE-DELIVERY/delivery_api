@@ -1,0 +1,29 @@
+@startuml Activity_Profile_Consent_OFF
+title Activity Diagram - Profile (Consent = OFF)
+
+|Customer App|
+start
+:Open Profile page;
+
+|Accounts API|
+:Fetch profile & consent;
+:Return profile;
+
+|Customer App|
+:Show limited profile (PII hidden) + "Enable consent" button;
+
+if() then ([Back/Close])
+  |Customer App|
+  :Keep consent=OFF (PII hidden);
+
+else ([Toggle ON])
+  |Accounts API|
+  :Update consent = ON;
+  |Customer App|
+  :Reveal PII fields + consent toggle;
+
+endif
+
+:Go to Edit Profile Fields (UC);
+stop
+@enduml

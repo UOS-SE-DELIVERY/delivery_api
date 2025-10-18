@@ -1,0 +1,128 @@
+@startuml ManageCoupons_MutationsSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:CouponAdminCreateAPIView" as createv
+participant "view:CouponAdminDetailAPIView" as detailv
+participant "permissions:StaffPermissions" as perm
+participant "serializer:CouponCreateSerializer" as createsz
+participant "serializer:CouponUpdateSerializer" as upsz
+participant "serializer:CouponSummarySerializer" as sumsz
+participant "coupon:Coupon" as coupon
+participant ":db" as db
+
+opt Create Coupon
+  Staff -> fe : Submit form {code,name,type,amount?,percent?,max_uses?,start_at?,end_at?,conditions?}
+  fe -> createv : POST /staff/admin/promo/coupons {payload}
+  activate createv
+  createv -> perm : check_permission(staff,"coupon:create")
+  alt forbidden
+    perm --> createv : denied
+    createv --> fe : 403 Forbidden
+    deactivate createv
+  else allowed
+    perm --> createv : ok
+    createv -> createsz : validate(payload)
+    alt invalid
+      createsz --> createv : ValidationError {field_errors}
+      createv --> fe : 400 Bad Request {errors}
+      deactivate createv
+    else valid
+      createsz --> createv : normalized
+      createv -> coupon : create(normalized)
+      coupon -> db : INSERT Coupon
+      db --> coupon : coupon_id
+      coupon --> createv : instance
+      createv -> sumsz : serialize(instance)
+      sumsz --> createv : coupon_json
+      createv --> fe : 201 Created {coupon: coupon_json}
+      deactivate createv
+    end
+  end
+end
+
+opt Update Coupon
+  Staff -> fe : Submit changes {fields}
+  fe -> detailv : PATCH /staff/admin/promo/coupons/{id} {fields}
+  activate detailv
+  detailv -> perm : check_permission(staff,"coupon:update")
+  alt forbidden
+    perm --> detailv : denied
+    detailv --> fe : 403 Forbidden
+    deactivate detailv
+  else allowed
+    perm --> detailv : ok
+    detailv -> coupon : get_by_id(id)
+    coupon -> db : SELECT Coupon WHERE id=?
+    db --> coupon : coupon or none
+    alt not found
+      coupon --> detailv : not_found
+      detailv --> fe : 404 Not Found
+      deactivate detailv
+    else found
+      coupon --> detailv : instance
+      detailv -> upsz : validate(fields)
+      alt invalid
+        upsz --> detailv : ValidationError {field_errors}
+        detailv --> fe : 400 Bad Request {errors}
+        deactivate detailv
+      else valid
+        upsz --> detailv : normalized
+        detailv -> coupon : update(id, normalized)
+        coupon -> db : UPDATE Coupon SET ... WHERE id=?
+        db --> coupon : ok
+        coupon --> detailv : updated
+        detailv -> sumsz : serialize(updated)
+        sumsz --> detailv : coupon_json
+        detailv --> fe : 200 OK {coupon: coupon_json}
+        deactivate detailv
+      end
+    end
+  end
+end
+
+opt Toggle Active
+  Staff -> fe : Toggle active {active}
+  fe -> detailv : POST /staff/admin/promo/coupons/{id}/toggle {active}
+  activate detailv
+  detailv -> perm : check_permission(staff,"coupon:toggle")
+  alt forbidden
+    perm --> detailv : denied
+    detailv --> fe : 403 Forbidden
+    deactivate detailv
+  else allowed
+    perm --> detailv : ok
+    detailv -> coupon : get_by_id(id)
+    coupon -> db : SELECT Coupon WHERE id=?
+    db --> coupon : coupon or none
+    alt not found
+      coupon --> detailv : not_found
+      detailv --> fe : 404 Not Found
+      deactivate detailv
+    else found
+      coupon --> detailv : instance
+      detailv -> coupon : set_active(id, active)
+      coupon -> db : UPDATE Coupon SET active=? WHERE id=?
+      db --> coupon : ok
+      coupon --> detailv : updated
+      detailv -> sumsz : serialize(updated)
+      sumsz --> detailv : coupon_json
+      detailv --> fe : 200 OK {coupon: coupon_json}
+      deactivate detailv
+    end
+  end
+end
+@enduml

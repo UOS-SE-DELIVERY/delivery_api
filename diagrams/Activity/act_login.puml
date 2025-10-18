@@ -1,0 +1,34 @@
+@startuml Activity_Customer_Login
+title Activity Diagram - Customer Login
+
+|Customer App|
+start
+:Open Login page;
+
+while () is ([Enter credentials])
+  :Enter credentials;
+
+  |Accounts API|
+  :Authenticate;
+  if () then ([Success])
+    :Return token;
+  else ([Failure])
+    :Return error;
+  endif
+
+  |Customer App|
+  if () then ([Failure])
+    :Show error;
+    :Open Login page;
+  else ([Success])
+  endif
+endwhile ([Logged in])
+
+|Orders API|
+:Fetch order history;
+:Return list;
+
+|Customer App|
+:Show home with saved orders;
+stop
+@enduml

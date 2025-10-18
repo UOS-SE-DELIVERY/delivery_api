@@ -1,0 +1,52 @@
+@startuml ManageStaff_CreateSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:StaffAdminCreateAPIView" as createv
+participant "permissions:StaffPermissions" as perm
+participant "serializer:StaffCreateSerializer" as createsz
+participant "staff:Staff" as staff
+participant "serializer:StaffSummarySerializer" as sumsz
+participant ":db" as db
+
+Staff -> fe : Submit form {username,password,name,phone,roles[],active?}
+fe -> createv : POST /staff/admin/staff {payload}
+activate createv
+createv -> perm : check_permission(staff,"create")
+alt forbidden
+  perm --> createv : denied
+  createv --> fe : 403 Forbidden
+  deactivate createv
+else allowed
+  perm --> createv : ok
+  createv -> createsz : validate(payload)
+  alt invalid
+    createsz --> createv : ValidationError {field_errors}
+    createv --> fe : 400 Bad Request {errors}
+    deactivate createv
+  else valid
+    createsz --> createv : normalized
+    createv -> staff : create(normalized)
+    staff -> db : INSERT Staff
+    db --> staff : staff_id
+    staff --> createv : instance
+    createv -> sumsz : serialize(instance)
+    sumsz --> createv : staff_json
+    createv --> fe : 201 Created {staff: staff_json}
+    deactivate createv
+  end
+end
+@enduml

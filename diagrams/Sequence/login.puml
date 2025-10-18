@@ -1,0 +1,52 @@
+@startuml LoginSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Guest
+participant "client:WebApp" as fe
+participant "view:LoginView" as logv
+participant "serializer:LoginSerializer" as logsz
+participant "customer:Customer" as customer
+participant "auth:JWTAuthentication" as jwt
+participant ":db" as db
+
+Guest -> fe : Fill form {username, password}
+fe -> logv : POST /auth/login (JSON)
+activate logv
+logv -> logsz : validate(credentials)
+alt invalid payload
+  logsz --> logv : ValidationError {field_errors}
+  logv --> fe : 400 Bad Request
+  deactivate logv
+  fe -> fe : showValidationErrors(errors)
+else valid
+  logsz --> logv : {username, password}
+  logv -> customer : get_by_username(username)
+  customer -> db : SELECT Customer WHERE username
+  db --> customer : user or none
+  alt not found or password mismatch
+    customer --> logv : auth_failed
+    logv --> fe : 400 Bad Request
+    deactivate logv
+    fe -> fe : showAuthError()
+  else ok
+    customer --> logv : user
+    logv -> jwt : createAccessToken(user)
+    jwt --> logv : access(token)
+    logv --> fe : 200 OK
+    deactivate logv
+    fe -> fe : redirect("/")
+  end
+end
+@enduml

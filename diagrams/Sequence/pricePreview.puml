@@ -1,0 +1,109 @@
+@startuml OrderPricePreviewSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "view:OrderPricePreviewAPIView" as prev
+participant "serializer:PricePreviewRequestSerializer" as reqsz
+participant "dinner:DinnerType" as dinner
+participant "style:ServingStyle" as style
+participant "item:MenuItem" as item
+participant "pricing:Pricing" as pricing
+participant "promo:PromotionServices" as promo
+participant ":db" as db
+
+Customer -> fe : Submit {dinner, items?, coupons?}
+fe -> prev : POST /api/orders/price/preview (JSON)
+activate prev
+prev -> reqsz : validate(payload)
+alt invalid payload
+  reqsz --> prev : ValidationError {errors}
+  prev --> fe : 400 Bad Request {errors}
+  deactivate prev
+else valid
+  reqsz --> prev : {dinner, items, coupons}
+  prev -> dinner : get_by_code_active(code)
+  dinner -> db : SELECT DinnerType WHERE code AND active
+  alt not found
+    db --> dinner : none
+    dinner --> prev : not_found
+    prev --> fe : 400 Bad Request {detail}
+    deactivate prev
+  else found
+    db --> dinner : dinner
+    dinner --> prev : dinner
+    prev -> style : get_by_code(style_code)
+    style -> db : SELECT ServingStyle WHERE code
+    alt not found
+      db --> style : none
+      style --> prev : not_found
+      prev --> fe : 400 Bad Request {detail}
+      deactivate prev
+    else found
+      db --> style : style
+      style --> prev : style
+      prev -> pricing : validate_style_allowed(dinner, style)
+      alt not allowed
+        pricing --> prev : raise ValueError
+        prev --> fe : 400 Bad Request {detail}
+        deactivate prev
+      else ok
+        pricing --> prev : ok
+        prev -> pricing : apply_style_to_base(dinner, style)
+        pricing --> prev : unit_cents, style_adjust
+        prev -> pricing : resolve_dinner_options_for_dinner(dinner, dinner_options[])
+        alt invalid dinner options
+          pricing --> prev : raise ValueError
+          prev --> fe : 400 Bad Request {detail}
+          deactivate prev
+        else ok
+          pricing --> prev : dinner_opts
+          prev -> prev : build adjustments
+          prev -> prev : dinner_subtotal = unit_cents * qty
+          loop for each item in items
+            prev -> item : get_by_code_active(code)
+            item -> db : SELECT MenuItem WHERE code AND active
+            alt not found
+              db --> item : none
+              item --> prev : not_found
+              prev --> fe : 400 Bad Request {detail}
+              deactivate prev
+            else found
+              db --> item : menu_item
+              item --> prev : item
+              prev -> pricing : validate_item_options_for_item(item, option_ids)
+              alt invalid item options
+                pricing --> prev : raise ValueError
+                prev --> fe : 400 Bad Request {detail}
+                deactivate prev
+              else ok
+                pricing --> prev : selected_opts
+                prev -> pricing : calc_item_unit_cents(item, selected_opts)
+                pricing --> prev : unit_price_cents, snaps
+                prev -> prev : add LineItem
+              end
+            end
+          end
+          prev -> prev : subtotal = dinner_subtotal + items_total
+          prev -> promo : evaluate_discounts(subtotal, customer_id?, channel, dinner_code, item_lines, style_code, dinner_option_ids, coupon_codes)
+          promo --> prev : discounts, discount_total, total_after
+          prev --> fe : 200 OK {line_items, adjustments, subtotal_cents, discounts, discount_cents, total_cents}
+          deactivate prev
+        end
+      end
+    end
+  end
+end
+@enduml

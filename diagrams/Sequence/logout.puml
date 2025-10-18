@@ -1,0 +1,25 @@
+@startuml LogoutSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "view:LogoutView" as lov
+
+fe -> lov : POST /auth/logout
+activate lov
+lov --> fe : 204 No Content
+deactivate lov
+fe -> fe : redirect("/auth/login")
+@enduml

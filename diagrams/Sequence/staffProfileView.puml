@@ -1,0 +1,48 @@
+@startuml StaffViewMyProfileSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "auth:JWTAuthentication" as jwt
+participant "viewset:StaffMeViewSet" as mev
+participant "serializer:StaffMeSerializer" as mesz
+participant "staff:Staff" as staff
+participant ":db" as db
+
+Staff -> fe : Open My Profile
+fe -> jwt : authenticate(access)
+jwt --> fe : ok
+fe -> mev : GET /staff/me
+activate mev
+mev -> staff : get_by_id(sub)
+staff -> db : SELECT Staff WHERE id=?
+db --> staff : staff
+staff --> mev : instance
+mev -> mesz : serialize(staff)
+mesz --> mev : profile
+mev --> fe : 200 OK {profile}
+deactivate mev
+
+opt Extend: View My Shifts
+  fe -> mev : GET /staff/me/shifts?from=&to=
+  activate mev
+  mev -> staff : list_shifts(staff_id, range)
+  staff -> db : SELECT Shift WHERE staff_id=? AND start_time BETWEEN ? AND ? ORDER BY start_time DESC
+  db --> staff : shifts[]
+  staff --> mev : shifts
+  mev --> fe : 200 OK {shifts}
+  deactivate mev
+end
+@enduml

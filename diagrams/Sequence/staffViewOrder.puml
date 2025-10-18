@@ -1,0 +1,56 @@
+@startuml StaffViewOrdersSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Staff
+participant "client:StaffApp" as fe
+participant "view:OrderEventsSSEView" as ssev
+participant "serializer:StaffOrderSummarySerializer" as sumsz
+participant "order:Order" as order
+participant "view:OrderStatusChangeAPIView" as statusv
+participant "serializer:OrderStatusChangeSerializer" as statsz
+participant ":db" as db
+
+Staff -> fe : Open Orders board
+fe -> ssev : GET /staff/orders/sse
+activate ssev
+ssev --> fe : establishEventStream()
+
+ssev -> order : latest(limit=10)
+order -> db : SELECT Order ORDER BY created_at DESC LIMIT 10
+db --> order : last10
+order --> ssev : last10
+ssev -> sumsz : serialize(last10, many=True)
+sumsz --> ssev : bootstrap_payload
+ssev -> fe : event "bootstrap" {orders: bootstrap_payload}
+
+opt Include: Change Order Status
+  fe -> statusv : POST /staff/orders/{order_id}/status {action}
+  activate statusv
+  statusv -> statsz : validate({order_id, action})
+  statsz --> statusv : ok
+  statusv -> order : apply_action(order_id, action)
+  order -> db : UPDATE Order SET status=?, updated_at=now() WHERE id=?
+  db --> order : ok
+  order --> statusv : updated
+  statusv --> fe : 200 OK {order}
+  deactivate statusv
+end
+
+loop On order event
+  ssev -> fe : event {order_id, type, payload}
+end
+
+deactivate ssev
+@enduml

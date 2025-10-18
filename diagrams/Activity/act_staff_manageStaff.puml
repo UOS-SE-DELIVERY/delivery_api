@@ -1,0 +1,48 @@
+@startuml Activity_OwnerManager_Manage_Staff
+title Activity - Manage Staff
+
+|Staff App|
+start
+:Open "Manage Staff";
+
+if () then ([role in {Owner,Manager}])
+else ([Not allowed])
+  :Show not allowed;
+  stop
+endif
+
+|StaffOps API|
+:Fetch staff list;
+:Return list;
+
+|Staff App|
+while ()
+    |Staff App|
+    :Show staff list;
+
+    if () then ([Update/Create])
+        :Select or Enter a staff;
+        :Update/Enter fields;
+    elseif () then ([Change role])
+        :Select staff;
+        :Choose role;
+    else ([Deactivate])
+        :Select staff;
+    endif
+
+    |StaffOps API|
+    if () then ([Upsert])
+        :Validate and Save profile;
+    elseif () then ([Change role])
+        :Update role;
+    else ([Deactivate])
+        :Deactivate staff;
+    endif
+    :Fetch staff list;
+    :Return list;
+endwhile ([Back])
+
+|Staff App|
+:Close "Manage Staff";
+stop
+@enduml

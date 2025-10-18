@@ -1,0 +1,188 @@
+@startuml MrDinner_Architecture_MVT_StaffComplete
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam componentStyle rectangle
+skinparam rectangleBorderColor #555
+skinparam rectangleBackgroundColor #FBFBFF
+skinparam databaseBackgroundColor #FFFFFF
+skinparam databaseBorderColor #555
+left to right direction
+
+frame "Frontend (React SPA = Template)" as fe {
+  [WebApp (Customer SPA)] as web
+  [StaffApp (Staff SPA)] as staffui
+  [CartStore (Client State)] as cart <<client-storage>>
+  [Voice Recognition Service] as voice <<external>>
+}
+
+node "Delivery API (Django REST) — Model & View" as api {
+
+  package "Accounts" as accounts {
+    package "Views" as accounts_views {
+      [RegisterView]
+      [LoginView]
+      [LogoutView]
+      [ProfileView]
+    }
+    package "Serializers" as accounts_sz {
+      [RegisterSerializer]
+      [LoginSerializer]
+      [ProfileSerializer]
+    }
+    package "Models" as accounts_models {
+      [Customer]
+    }
+    [JWTAuthentication]
+  }
+
+  package "Catalog" as catalog {
+    package "Views" as catalog_views {
+      [CatalogBootstrapAPIView]
+      [ItemDetailWithExpandAPIView]
+      [AddonsListPageAPIView]
+      [DinnerFullAPIView]
+    }
+    package "Serializers" as catalog_sz {
+      [MenuCategorySerializer]
+      [ItemDetailResponseSerializer]
+      [AddonCardItemSerializer]
+      [AddonsPageResponseSerializer]
+      [DinnerFullSerializer]
+    }
+    package "Selectors" as catalog_sel {
+      [CatalogSelectors]
+    }
+    package "Models" as catalog_models {
+      [MenuCategory]
+      [MenuItem]
+      [ServingStyle]
+      [DinnerType]
+      [DinnerOptionGroup]
+      [DinnerOption]
+      [ItemTag]
+    }
+  }
+
+  package "Orders" as orders {
+    package "Views" as orders_views {
+      [OrderListAPIView]
+      [OrderDetailAPIView]
+      [OrderCreateAPIView]
+      [OrderStatusChangeAPIView]
+      [OrderPricePreviewAPIView]
+    }
+    package "Serializers" as orders_sz {
+      [OrderSummarySerializer]
+      [OrderDetailSerializer]
+      [OrderCreateRequestSerializer]
+      [PricePreviewRequestSerializer]
+      [OrderStatusChangeSerializer]
+    }
+    package "Services" as orders_svc {
+      [Pricing]
+    }
+    package "Models" as orders_models {
+      [Order]
+      [OrderDinner]
+      [OrderDinnerItem]
+      [OrderDinnerOption]
+      [OrderItemOption]
+    }
+  }
+
+  package "Promotion" as promo {
+    package "Views" as promo_views {
+      [CouponAdmin APIs]
+      [MembershipAdmin APIs]
+    }
+    package "Serializers" as promo_sz {
+      [Coupon*Serializer]
+      [Membership*Serializer]
+    }
+    package "Services" as promo_svc {
+      [PromotionServices]
+    }
+    package "Models" as promo_models {
+      [Coupon]
+      [CouponRedemption]
+      [Membership]
+    }
+  }
+
+  package "StaffOps" as staffops {
+    package "Views" as staff_views {
+      [StaffLoginView]
+      [StaffLogoutView]
+      [StaffMeView]
+      [StaffOrderDetailView]
+      [CouponsView]
+      [CouponDetailView]
+      [MembershipsView]
+      [MembershipDetailView]
+      [OrdersSSEView]
+    }
+    package "Serializers" as staff_sz {
+      [StaffLoginSerializer]
+      [StaffMeSerializer]
+      [StaffOrderDetailSerializer]
+      [CouponSerializer]
+      [MembershipSerializer]
+    }
+    package "Auth" as staff_auth {
+      [StaffJWTAuthentication]
+      [issue_access_token]
+      [set_auth_cookie]
+      [clear_auth_cookie]
+    }
+    package "Permissions" as staff_perm {
+      [IsOwnerOrManager]
+    }
+    package "EventBus" as staff_bus {
+      [iter_order_notifications]
+    }
+    package "Models" as staff_models {
+      [Staff]
+      [StaffRole]
+      [Shift]
+    }
+  }
+
+  [OrdersSSE Ready/Bootstrap] as sse_boot <<control>>
+}
+
+database "PostgreSQL" as db
+
+' ===== Frontend → Backend =====
+web --> accounts_views : register/login/profile
+web --> catalog_views : browse/detail
+web --> orders_views : price preview / create / list / detail
+web ..> cart : local cart state
+voice --> web : intents/slots
+
+staffui --> staff_views : login/logout/me
+staffui --> staff_views : coupons/memberships CRUD
+staffui --> staff_views : order detail
+staffui --> staff_views : GET /sse/orders
+
+' ===== Intra-API deps =====
+staff_views --> staff_auth : cookie JWT auth
+staff_views --> staff_perm : owner/manager checks
+
+staff_views --> promo_models : coupons/memberships
+staff_views --> orders_models : order detail bootstrap
+staff_views --> staff_bus : stream events
+staff_bus --> db : LISTEN channels
+
+orders_views --> orders_svc : compute totals
+orders_svc --> catalog_models : lookup menu/style/items
+orders_views --> promo_svc : evaluate/redeem discounts
+promo_svc --> promo_models
+
+' ===== Persistence =====
+accounts_models --> db
+catalog_models --> db
+orders_models --> db
+promo_models --> db
+staff_models --> db
+
+@enduml

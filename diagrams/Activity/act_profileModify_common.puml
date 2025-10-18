@@ -1,0 +1,55 @@
+@startuml Activity_Edit_Profile_Fields_Common
+title Activity Diagram - Edit Profile Fields (direct or after Consent)
+
+|Customer App|
+start
+:Open Edit Profile page;
+
+|Accounts API|
+:Fetch profile & consent;
+:Return profile;
+
+|Customer App|
+if () then ([Consent ON])
+  :Show profile (PII visible + common fields);
+else ([Consent OFF])
+  :Show profile (PII hidden + common fields);
+endif
+
+while () is ([Choose action])
+  if () then ([Back/Close])
+    :Close edit;
+    stop
+
+  elseif () then ([Update field])
+    :Choose field (PII or common);
+    if () then ([PII])
+      if () then ([Consent ON])
+        :Enter new value;
+        |Accounts API|
+        :Update selected field;
+        |Customer App|
+        :Show success;
+      else ([Consent OFF])
+        :Show not allowed (enable consent);
+        :Return to Profile Consent (UC);
+        stop
+      endif
+    else ([Common])
+      :Enter new value;
+      |Accounts API|
+      :Update selected field;
+      |Customer App|
+      :Show success;
+    endif
+
+  else ([Go to Consent])
+    :Open Profile Consent (UC);
+    stop
+  endif
+endwhile ([Done])
+
+|Customer App|
+:Close edit;
+stop
+@enduml

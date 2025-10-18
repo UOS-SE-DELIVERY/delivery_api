@@ -1,0 +1,58 @@
+@startuml ViewOrderDetailSequence
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam sequence {
+  ArrowColor #444
+  LifeLineBorderColor #777
+  LifeLineBackgroundColor #FBFBFF
+  ParticipantBorderColor #555
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #555
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #999
+}
+
+autonumber
+actor Customer
+participant "client:WebApp" as fe
+participant "view:OrderDetailAPIView" as detv
+participant "serializer:OrderDetailSerializer" as detsz
+participant "order:Order" as order
+participant "line:OrderLineItem" as line
+participant ":db" as db
+
+Customer -> fe : Open Order Detail
+fe -> detv : GET /api/orders/{order_id}
+activate detv
+detv -> order : get_by_id_for_customer(order_id, customer_id)
+order -> db : SELECT Order WHERE id=? AND customer_id=?
+db --> order : order or none
+alt not found
+  order --> detv : not_found
+  detv --> fe : 404 Not Found
+  deactivate detv
+else found
+  order --> detv : order
+  detv -> line : list_by_order(order)
+  line -> db : SELECT OrderLineItem WHERE order_id=? ORDER BY line_no
+  db --> line : lines
+  line --> detv : lines
+  detv -> detsz : serialize(order, lines)
+  detsz --> detv : payload
+  detv --> fe : 200 OK payload
+  deactivate detv
+end
+
+opt Track order (include)
+  loop Periodic refresh
+    fe -> detv : GET /api/orders/{order_id}?fields=status,updated_at
+    activate detv
+    detv -> order : get_status(order_id, customer_id)
+    order -> db : SELECT status, updated_at FROM Order WHERE id=? AND customer_id=?
+    db --> order : status, updated_at
+    order --> detv : status, updated_at
+    detv --> fe : 200 OK {status, updated_at}
+    deactivate detv
+  end
+end
+@enduml

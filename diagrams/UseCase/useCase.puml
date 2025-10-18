@@ -38,8 +38,6 @@ rectangle "Accounts" as PKG_Accounts {
   usecase "Change Phone" as UC_ChangePhone
   usecase "Change Address" as UC_ChangeAddress
   usecase "Change Password" as UC_ChangePassword
-
-  usecase "View My Shifts" as UC_ViewShifts
 }
 
 rectangle "Catalog" as PKG_Catalog {
@@ -55,7 +53,6 @@ rectangle "Orders" as PKG_Orders {
 
   ' Tracking / History
   usecase "Track Order" as UC_TrackOrder
-  usecase "View Order History" as UC_ViewOrderHistory
   usecase "View Order List" as UC_ViewOrderList
   usecase "View Order Detail" as UC_ViewOrderDetail
 
@@ -77,6 +74,7 @@ rectangle "StaffOps" as PKG_Staff {
   usecase "View My Profile" as UC_StaffMe
 
   ' Shifts
+  usecase "View My Shifts" as UC_ViewShifts
   usecase "Start Shift" as UC_StartShift
   usecase "Stop Shift" as UC_StopShift
 
@@ -99,10 +97,6 @@ rectangle "Promotion" as PKG_Promo {
   usecase "Apply Membership" as UC_ApplyMembership
 }
 
-rectangle "Inventory" as PKG_Inv {
-  usecase "Manage Stock" as UC_ManageStock
-}
-
 ' ===================== Associations =====================
 
 ' Guest / Customer with Catalog & Accounts
@@ -115,7 +109,6 @@ Customer -- UC_Logout
 Customer -- UC_UpdateProfile
 
 ' Customer with Orders
-Customer -- UC_PlaceOrder
 Customer -- UC_ViewOrderList
 Customer -- UC_StartVoiceOrder
 
@@ -137,62 +130,55 @@ Staff -- UC_StopShift
 Owner -- UC_ManageStaff
 Owner -- UC_ManageCoupons
 Owner -- UC_ManageMemberships
-Owner -- UC_ManageStock
 
 Manager -- UC_ManageStaff
 Manager -- UC_ManageCoupons
 Manager -- UC_ManageMemberships
-Manager -- UC_ManageStock
 
-
-' ===================== Include / Extend =====================
+' ===================== Include / Extend (clean) =====================
 
 ' Accounts: Profile 화면 내 토글/개별 필드 변경
-UC_ManageConsent ..> UC_UpdateProfile : <<extend>> [toggle on profile page]
-UC_ChangeRealName ..> UC_UpdateProfile : <<extend>> [consent=ON]
-UC_ChangePhone ..> UC_UpdateProfile : <<extend>> [consent=ON]
-UC_ChangeAddress ..> UC_UpdateProfile : <<extend>> [consent=ON]
-UC_ChangePassword ..> UC_UpdateProfile : <<extend>>
+UC_ManageConsent ..> UC_UpdateProfile : <<extend>>
+UC_ChangeRealName ..> UC_UpdateProfile : <<extend>>
+UC_ChangePhone ..> UC_UpdateProfile   : <<extend>>
+UC_ChangeAddress ..> UC_UpdateProfile : <<extend>>
+UC_ChangePassword ..> UC_UpdateProfile: <<extend>>
 UC_ViewShifts ..> UC_StaffMe : <<extend>>
-
-' Login 후 이전 주문 자동 노출
-UC_Login ..> UC_ViewOrderHistory : <<include>> [show saved orders]
 
 ' Catalog/Orders: 주문 플로우 (Price Preview는 주문에 포함)
 UC_PlaceOrder ..> UC_PricePreview : <<include>>
-UC_ApplyCoupon ..> UC_PlaceOrder : <<extend>>
+UC_ApplyCoupon ..> UC_PlaceOrder  : <<extend>>
 UC_StartVoiceOrder ..> UC_PlaceOrder : <<extend>>
+' (제거 권장) UC_BrowseMenu ..> UC_PlaceOrder : <<extend>> 
 
 ' Orders: Tracking/History 구성
-UC_TrackOrder ..> UC_ViewOrderList : <<include>>
-UC_TrackOrder ..> UC_ViewOrderDetail : <<include>>
-UC_ViewOrderHistory ..> UC_ViewOrderList : <<include>>
-UC_ViewOrderHistory ..> UC_ViewOrderDetail : <<include>>
-
-UC_ViewOrderDetail ..> UC_ViewOrderList : <<include>>
-
+UC_ViewOrderDetail ..> UC_TrackOrder  : <<include>>
+UC_ViewOrderDetail ..> UC_ViewOrderList : <<extend>>
 ' Modify Order (pending에서만 허용, 가격 재계산 포함)
-UC_ModifyOrder ..> UC_ViewOrderDetail : <<extend>> [status=pending]
-UC_PricePreview ..> UC_ModifyOrder : <<include>>
+UC_ModifyOrder ..> UC_ViewOrderDetail : <<extend>>
+UC_ModifyOrder ..> UC_PricePreview    : <<include>>
 
-' Cart 구성(주문에는 장바구니 검토 포함)
-UC_ManageCart ..> UC_ViewCart : <<include>>
-UC_ManageCart ..> UC_AddCartItem : <<include>>
-UC_ManageCart ..> UC_UpdateCartItem : <<include>>
-UC_ManageCart ..> UC_RemoveCartItem : <<include>>
-UC_ManageCart ..> UC_PlaceOrder : <<extend>>
-UC_PlaceOrder ..> UC_ViewCart : <<include>>
+' Cart 구성 (View first → optional Manage)
+UC_ViewCart ..> UC_PlaceOrder       : <<include>>
+UC_ManageCart  ..> UC_ViewCart        : <<extend>>
+UC_ManageCart  ..> UC_AddCartItem     : <<include>>
+UC_ManageCart  ..> UC_UpdateCartItem  : <<include>>
+UC_ManageCart  ..> UC_RemoveCartItem  : <<include>>
+UC_AddCartItem ..> UC_ViewDinnerDetail : <<extend>>
 
-UC_ApplyMembership ..> UC_PricePreview : <<include>>
+' Membership auto-discount는 Price Preview 단계에서 수행
+UC_PricePreview ..> UC_ApplyMembership : <<include>>
 
 ' StaffOps: 상태변경/이벤트는 "View Orders" 문맥 확장
-UC_SubscribeSSE ..> UC_ViewOrders : <<extend>>
-UC_AcceptOrder ..> UC_ViewOrders : <<extend>>
-UC_MarkReady ..> UC_ViewOrders : <<extend>>
-UC_Dispatch ..> UC_ViewOrders : <<extend>>
+UC_SubscribeSSE  ..> UC_ViewOrders : <<extend>>
+UC_AcceptOrder   ..> UC_ViewOrders : <<extend>>
+UC_MarkReady     ..> UC_ViewOrders : <<extend>>
+UC_Dispatch      ..> UC_ViewOrders : <<extend>>
 UC_MarkDelivered ..> UC_ViewOrders : <<extend>>
-UC_CancelOrder ..> UC_ViewOrders : <<extend>>
+UC_CancelOrder   ..> UC_ViewOrders : <<extend>>
 
+' Catalog 상세 열람은 브라우즈의 선택적 확장
 UC_ViewDinnerDetail ..> UC_BrowseMenu : <<extend>>
+
 
 @enduml

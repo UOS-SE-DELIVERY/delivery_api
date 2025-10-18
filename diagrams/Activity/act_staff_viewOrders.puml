@@ -1,0 +1,43 @@
+@startuml Activity_Staff_View_Orders_Base
+title Activity - Staff View Orders 
+|Staff App|
+start
+:Open "View Orders";
+
+|Orders API|
+:Fetch orders;
+:Return list;
+
+|Staff App|
+:Show orders list;
+
+|Event Bus (SSE)|
+:Subscribe SSE;
+
+split
+  ' -- A) User interaction loop --
+  |Staff App|
+  while () is ([User action])
+    if () then ([Open order])
+      :Open order detail;
+      :Go to Order Action (UC);
+      :Back to list;
+    endif
+  endwhile ([Close])
+
+split again
+  ' -- B) Background SSE updates --
+  |Staff App|
+  while () is ([SSE update])
+    :Receive SSE event;
+    :Apply event to list;
+  endwhile ([Page closed])
+end split
+
+|Event Bus (SSE)|
+:Unsubscribe SSE;
+
+|Staff App|
+:Close "View Orders";
+stop
+@enduml

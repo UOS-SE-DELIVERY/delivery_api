@@ -1,0 +1,41 @@
+@startuml Activity_OwnerManager_Manage_Coupons
+title Activity - Manage Coupons
+
+|Staff App|
+start
+:Open "Manage Coupons";
+
+if () then ([role in {Owner,Manager}])
+else ([Not allowed])
+  :Show not allowed;
+  stop
+endif
+
+|Promotion Service|
+:Fetch coupons;
+:Return list;
+
+|Staff App|
+while ()
+    |Staff App|
+    :Show coupon list;
+
+    if () then ([Update/Create])
+        :Select or Enter a coupon;
+        :Update/Enter fields;
+    else ([Disable])
+        |Staff App|
+        :Select coupon;
+    endif
+    |Promotion Service|
+    :Validate and Save;
+    :Fetch coupons;
+    :Return list;
+endwhile ([Back])
+
+
+
+|Staff App|
+:Close "Manage Coupons";
+stop
+@enduml
