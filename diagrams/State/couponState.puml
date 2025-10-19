@@ -1,0 +1,42 @@
+@startuml CouponLifecycle_State_min
+skinparam shadowing false
+skinparam state { 
+    BackgroundColor white; 
+    BorderColor #444 
+}
+
+[*] --> Inactive
+Expired --> [*]
+Exhausted --> [*]
+
+state Inactive {
+  Inactive : activate[window_open] / status active
+  Inactive : schedule[future_window] / status scheduled
+}
+
+state Scheduled {
+  Scheduled : window_open[time_in_window] / status active
+  Scheduled : cancel_schedule / status inactive
+}
+
+state Active {
+  Active : redeem[within_limits] / apply discount; inc count
+  Active : redeem[max_reached] / mark exhausted
+  Active : expire[time_up] / mark expired
+  Active : deactivate[owner] / status inactive
+}
+
+state Expired
+state Exhausted
+
+' transitions = actions only
+Inactive --> Scheduled : status scheduled
+Inactive --> Active : status active
+Scheduled --> Active : status active
+Scheduled --> Inactive : status inactive
+Active --> Active : apply discount, inc count
+Active --> Exhausted : mark exhausted
+Active --> Expired : mark expired
+Active --> Inactive : status inactive
+Exhausted --> Inactive : status inactive
+@enduml

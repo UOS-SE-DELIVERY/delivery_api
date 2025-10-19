@@ -1,0 +1,44 @@
+@startuml SSE_Connection_State
+skinparam shadowing false
+skinparam state { 
+    BackgroundColor white 
+    BorderColor #444 
+}
+
+[*] --> Disconnected
+Disconnected --> [*] : terminate
+
+state Disconnected {
+  Disconnected : connect[auth_ok] / open
+}
+
+state Connecting {
+  Connecting : open[200] / subscribe
+  Connecting : error[net] / backoff
+  Connecting : unauthorized[401] / close
+  Connecting : cancel[user] / close
+}
+
+state Listening {
+  Listening : event[arrived] / push
+  Listening : ping_timeout / backoff
+  Listening : error[net] / backoff
+  Listening : unauthorized[401] / close
+  Listening : close[user] / close
+}
+
+state RetryBackoff {
+  RetryBackoff : tick[wait_over] / reconnect
+  RetryBackoff : cancel[user] / close
+}
+
+' transitions = actions only
+Disconnected --> Connecting : open
+Connecting --> Listening : subscribe
+Connecting --> RetryBackoff : backoff
+Connecting --> Disconnected : close
+Listening --> RetryBackoff : backoff
+Listening --> Disconnected : close
+RetryBackoff --> Connecting : reconnect
+RetryBackoff --> Disconnected : close
+@enduml

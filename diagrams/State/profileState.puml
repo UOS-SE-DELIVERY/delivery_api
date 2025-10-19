@@ -1,0 +1,31 @@
+@startuml ProfileConsent_State_v2
+skinparam shadowing false
+skinparam state { 
+    BackgroundColor white 
+    BorderColor #444 
+}
+
+[*] --> ConsentOff
+ConsentOn --> [*] : close account
+ConsentOff --> [*] : close account
+
+state ConsentOff {
+  ConsentOff : grant_consent[agree] / consent on
+  ConsentOff : update_name[requested] / deny change
+  ConsentOff : update_phone[requested] / deny change
+  ConsentOff : update_address[requested] / deny change
+}
+
+state ConsentOn {
+  ConsentOn : revoke_consent[confirm] / consent off; purge pii
+  ConsentOn : update_name[valid] / apply change
+  ConsentOn : update_phone[valid] / apply change
+  ConsentOn : update_address[valid] / apply change
+}
+
+' self-loops and transitions (labels = actions only)
+ConsentOn --> ConsentOn : apply change
+ConsentOff --> ConsentOff : deny change
+ConsentOff --> ConsentOn : consent on
+ConsentOn --> ConsentOff : consent off; purge pii
+@enduml

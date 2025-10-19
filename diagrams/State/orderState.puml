@@ -1,0 +1,53 @@
+@startuml OrderFulfillment_State_edit_selfloop
+skinparam shadowing false
+skinparam state {
+    BackgroundColor white; 
+    BorderColor #444 
+}
+
+[*] --> Pending
+Delivered --> [*]
+Canceled  --> [*]
+
+state Pending {
+  Pending : accept[ok] / prepare
+  Pending : cancel[allowed] / cancel
+  Pending : start_edit[allowed] / edit start
+  Pending : update_items[valid] / recalc
+  Pending : update_address[valid] / recalc
+  Pending : apply_coupon[valid] / apply; recalc
+  Pending : remove_coupon / remove; recalc
+  Pending : save_edit / save
+  Pending : discard_edit / discard
+}
+
+state Preparing {
+  Preparing : mark_ready[packed] / ready
+  Preparing : out_for_delivery[handoff] / dispatch
+  Preparing : cancel[allowed] / cancel
+}
+
+state OutForDelivery {
+  OutForDelivery : deliver[received] / deliver
+  OutForDelivery : cancel[allowed] / cancel
+}
+
+state Delivered
+state Canceled
+
+' self-loops for edit flow
+Pending --> Pending : edit start
+Pending --> Pending : recalc
+Pending --> Pending : apply
+Pending --> Pending : remove
+Pending --> Pending : save
+Pending --> Pending : discard
+
+' main transitions (labels = actions only)
+Pending --> Preparing : prepare
+Preparing --> OutForDelivery : dispatch
+OutForDelivery --> Delivered : deliver
+Pending --> Canceled : cancel
+Preparing --> Canceled : cancel
+OutForDelivery --> Canceled : cancel
+@enduml

@@ -1,0 +1,304 @@
+@startuml MrDinner_Class_AllApps
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam class {
+BackgroundColor #FFFFFF
+BorderColor #555
+}
+hide methods
+
+' ===================== Accounts =====================
+package "accounts" {
+class Customer {
++customer_id: BigAutoField
++username: TextField
++password: CharField
++real_name: TextField?
++phone: TextField?
++addresses: JSONField
++profile_consent: BooleanField
++profile_consent_at: DateTimeField?
++loyalty_tier: TextField
++created_at: DateTimeField?
+}
+}
+
+' ===================== Catalog =====================
+package "catalog" {
+class MenuCategory {
++category_id: BigAutoField
++parent: FK<MenuCategory>?
++name: TextField
++slug: SlugField?
++active: BooleanField
++rank: IntegerField
+}
+
+class MenuItem {
++item_id: BigAutoField
++category: FK<MenuCategory>
++code: CharField
++name: TextField
++description: TextField?
++unit: CharField?
++base_price_cents: PositiveIntegerField
++attrs: JSONField?
++active: BooleanField
+}
+
+class ItemTag {
++tag_id: BigAutoField
++name: CharField
+}
+
+class ItemTagMap {
++id: BigAutoField
++item: FK<MenuItem>
++tag: FK<ItemTag>
+}
+
+class ItemOptionGroup {
++group_id: BigAutoField
++item: FK<MenuItem>
++name: TextField
++price_mode: CharField
++select_mode: CharField
++rank: IntegerField
++min_select: PositiveIntegerField
++max_select: IntegerField?
++is_required: BooleanField
++is_variant: BooleanField
+}
+
+class ItemOption {
++option_id: BigAutoField
++group: FK<ItemOptionGroup>
++name: TextField
++rank: IntegerField
++price_delta_cents: PositiveIntegerField
++multiplier: DecimalField?
++is_default: BooleanField
+}
+
+class ServingStyle {
++style_id: BigAutoField
++code: CharField
++name: TextField
++price_mode: CharField
++price_value: DecimalField
++notes: TextField?
+}
+
+class DinnerType {
++dinner_type_id: BigAutoField
++code: CharField
++name: TextField
++description: TextField?
++base_price_cents: PositiveIntegerField
++active: BooleanField
+}
+
+class DinnerTypeDefaultItem {
++id: BigAutoField
++dinner_type: FK<DinnerType>
++item: FK<MenuItem>
++default_qty: DecimalField
++included_in_base: BooleanField
++notes: TextField?
+}
+
+class DinnerStyleAllowed {
++id: BigAutoField
++dinner_type: FK<DinnerType>
++style: FK<ServingStyle>
+}
+
+class DinnerOptionGroup {
++group_id: BigAutoField
++dinner_type: FK<DinnerType>
++name: TextField
++price_mode: CharField
++select_mode: CharField
++rank: IntegerField
++min_select: PositiveIntegerField
++max_select: IntegerField?
++is_required: BooleanField
+}
+
+class DinnerOption {
++option_id: BigAutoField
++group: FK<DinnerOptionGroup>
++item: FK<MenuItem>?
++name: TextField
++rank: IntegerField
++price_delta_cents: PositiveIntegerField
++multiplier: DecimalField?
++is_default: BooleanField
+}
+
+class ItemAvailability {
++id: BigAutoField
++item: FK<MenuItem>
++dow: IntegerField
++start_date: DateField?
++end_date: DateField?
++start_time: TimeField?
++end_time: TimeField?
+}
+}
+
+' ===================== Orders =====================
+package "orders" {
+class Order {
++id: BigAutoField
++customer: FK<accounts.Customer>
++status: CharField
++subtotal_cents: PositiveIntegerField
++discount_cents: PositiveIntegerField
++total_cents: PositiveIntegerField
++order_source: CharField
++ordered_at: DateTimeField?
++delivery_address: TextField?
++receiver_name: TextField?
++receiver_phone: TextField?
++address_meta: JSONField?
++geo_lat: DecimalField?
++geo_lng: DecimalField?
++payment_token: TextField?
++place_label: TextField?
++meta: JSONField?
+}
+
+class OrderDinner {
++id: BigAutoField
++order: FK<Order>
++dinner_type: FK<catalog.DinnerType>
++style: FK<catalog.ServingStyle>
++quantity: DecimalField
++base_price_cents: PositiveIntegerField
++style_adjust_cents: PositiveIntegerField
++notes: TextField?
++person_label: TextField?
+}
+
+class OrderDinnerItem {
++id: BigAutoField
++order_dinner: FK<OrderDinner>
++item: FK<catalog.MenuItem>
++change_type: CharField
++final_qty: DecimalField
++is_default: BooleanField
++unit_price_cents: PositiveIntegerField
+}
+
+class OrderItemOption {
++id: BigAutoField
++order_dinner_item: FK<OrderDinnerItem>
++option_group_name: TextField
++option_name: TextField
++price_delta_cents: PositiveIntegerField
++multiplier: DecimalField?
+}
+
+class OrderDinnerOption {
++id: BigAutoField
++order_dinner: FK<OrderDinner>
++option_group_name: TextField
++option_name: TextField
++price_delta_cents: PositiveIntegerField
++multiplier: DecimalField?
+}
+}
+
+' ===================== Promotion =====================
+package "promotion" {
+class Coupon {
++id: BigAutoField
++code: CharField
++name: CharField
++label: CharField?
++kind: CharField
++channel: CharField
++value: DecimalField
++max_discount_cents: IntegerField?
++min_subtotal_cents: IntegerField?
++max_redemptions_global: IntegerField?
++max_redemptions_per_user: IntegerField?
++active: BooleanField
++stackable_with_coupons: BooleanField
++stackable_with_membership: BooleanField
++created_at: DateTimeField?
++updated_at: DateTimeField?
++valid_from: DateTimeField?
++valid_until: DateTimeField?
++notes: TextField?
+}
+
+class CouponRedemption {
++id: BigAutoField
++coupon: FK<Coupon>
++customer: FK<accounts.Customer>
++order: FK<orders.Order>
++amount_cents: IntegerField
++channel: CharField
++redeemed_at: DateTimeField?
+}
+
+class Membership {
++id: BigAutoField
++customer: OneToOne<accounts.Customer>
++active: BooleanField
++label: CharField
++percent_off: DecimalField
++valid_from: DateTimeField?
++valid_until: DateTimeField?
+}
+}
+
+' ===================== Staff =====================
+package "staff" {
+class Staff {
++id: BigAutoField
++username: CharField
++password: CharField
++role: CharField
++is_active: BooleanField
++created_at: DateTimeField?
+}
+}
+
+' ===================== Associations =====================
+
+' Accounts ↔ Orders / Promotion
+orders.Order "0.." --> "1" accounts.Customer : customer
+promotion.CouponRedemption "0.." --> "1" promotion.Coupon : coupon
+promotion.CouponRedemption "0.." --> "1" accounts.Customer : customer
+promotion.CouponRedemption "0.." --> "1" orders.Order : order
+promotion.Membership "1" --> "1" accounts.Customer : customer
+
+' Catalog self & intra
+catalog.MenuCategory o--> catalog.MenuCategory : parent
+catalog.MenuItem "0.." --> "1" catalog.MenuCategory : category
+catalog.ItemTagMap "0.." --> "1" catalog.MenuItem : item
+catalog.ItemTagMap "0.." --> "1" catalog.ItemTag : tag
+catalog.ItemOptionGroup "0.." --> "1" catalog.MenuItem : item
+catalog.ItemOption "0.." --> "1" catalog.ItemOptionGroup : group
+catalog.DinnerTypeDefaultItem "0.." --> "1" catalog.DinnerType : dinner_type
+catalog.DinnerTypeDefaultItem "0.." --> "1" catalog.MenuItem : item
+catalog.DinnerStyleAllowed "0.." --> "1" catalog.DinnerType : dinner_type
+catalog.DinnerStyleAllowed "0.." --> "1" catalog.ServingStyle : style
+catalog.DinnerOptionGroup "0.." --> "1" catalog.DinnerType : dinner_type
+catalog.DinnerOption "0.." --> "1" catalog.DinnerOptionGroup : group
+catalog.DinnerOption "0.." --> "0..1" catalog.MenuItem : item
+catalog.ItemAvailability "0..*" --> "1" catalog.MenuItem : item
+
+' Orders ↔ Catalog
+orders.OrderDinner "0.." --> "1" orders.Order : order
+orders.OrderDinner "0.." --> "1" catalog.DinnerType : dinner_type
+orders.OrderDinner "0.." --> "1" catalog.ServingStyle : style
+orders.OrderDinnerItem "0.." --> "1" orders.OrderDinner : order_dinner
+orders.OrderDinnerItem "0.." --> "1" catalog.MenuItem : item
+orders.OrderItemOption "0.." --> "1" orders.OrderDinnerItem : order_dinner_item
+orders.OrderDinnerOption "0..*" --> "1" orders.OrderDinner : order_dinner
+
+@enduml

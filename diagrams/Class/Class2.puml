@@ -1,0 +1,993 @@
+@startuml Pyreverse_To_PlantUML_NoAliases_FixedMultiline
+skinparam shadowing false
+skinparam class {
+  BackgroundColor white
+  BorderColor #444
+}
+left to right direction
+
+' =======================
+' Packages & Classes (all multiline, no aliases)
+' =======================
+
+package "apps.accounts.apps" {
+  class AccountsConfig {
+    +default_auto_field: str
+    +name: str
+  }
+}
+
+package "apps.accounts.models" {
+  class Customer {
+    +customer_id: BigAutoField
+    +addresses: JSONField
+    +created_at: DateTimeField
+    +is_anonymous: bool
+    +is_authenticated: bool
+    +loyalty_tier: TextField
+    +password: CharField
+    +phone: TextField
+    +profile_consent: BooleanField
+    +profile_consent_at: DateTimeField
+    +real_name: TextField
+    +username: TextField
+  }
+
+  class LoyaltyTier {
+    +name
+  }
+
+  class CustomerMeta {
+    +constraints: list
+    +db_table: str
+  }
+}
+
+package "apps.accounts.serializers" {
+  class AddressSerializer {
+    +is_default: BooleanField
+    +label: CharField
+    +lat: FloatField
+    +line: CharField
+    +lng: FloatField
+    +validate(attrs)
+  }
+
+  class LoginSerializer {
+    +username: CharField
+    +password: CharField
+    +validate(attrs)
+  }
+
+  class MeSerializer {
+  }
+
+  class MeSerializerMeta {
+    +fields: tuple
+    +model
+    +read_only_fields: tuple
+  }
+
+  class RegisterSerializer {
+    +address: JSONField
+    +password: CharField
+    +phone: CharField
+    +profile_consent: BooleanField
+    +real_name: CharField
+    +username: CharField
+    +create(validated)
+    +validate(attrs)
+    +validate_password(pw: str): str
+    +validate_username(v: str): str
+  }
+
+  class RegisterSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class PasswordChangeSerializer {
+    +old_password: CharField
+    +new_password: CharField
+    +validate(attrs)
+  }
+
+  class ProfileUpdateSerializer {
+    +phone: CharField
+    +profile_consent: BooleanField
+    +real_name: CharField
+    +validate_phone(v)
+  }
+
+  class UsernameUpdateSerializer {
+    +new_username: CharField
+    +password: CharField
+    +save()
+    +validate(attrs)
+    +validate_new_username(v: str): str
+  }
+}
+
+package "apps.accounts.views" {
+  class LoginView {
+    +permission_classes: list
+    +post(request)
+  }
+
+  class LogoutView {
+    +permission_classes: list
+    +post(request)
+  }
+
+  class MeViewSet {
+    +permission_classes: list
+    +retrieve(request)
+    +partial_update(request)
+    +addresses(request)
+    +modify_address(request, idx: str)
+    +set_default_address(request, idx: str)
+    +change_username(request)
+    +change_password(request)
+  }
+
+  class RegisterView {
+    +permission_classes: list
+    +post(request)
+  }
+}
+
+package "apps.accounts.auth" {
+  class JWTAuthentication {
+    +authenticate(request)
+  }
+}
+
+package "apps.catalog.apps" {
+  class CatalogConfig {
+    +default_auto_field: str
+    +name: str
+  }
+}
+
+package "apps.catalog.models" {
+  class MenuCategory {
+    +category_id: BigAutoField
+    +parent: ForeignKey
+    +active: BooleanField
+    +name: TextField
+    +rank: IntegerField
+    +slug: SlugField
+  }
+
+  class MenuCategoryMeta {
+    +db_table: str
+    +ordering: tuple
+  }
+
+  class MenuItem {
+    +item_id: BigAutoField
+    +category: ForeignKey
+    +active: BooleanField
+    +attrs: JSONField
+    +base_price_cents: PositiveIntegerField
+    +code: CharField
+    +description: TextField
+    +name: TextField
+    +tags: ManyToManyField
+    +unit: CharField
+  }
+
+  class MenuItemMeta {
+    +db_table: str
+    +indexes: list
+  }
+
+  class ItemTag {
+    +tag_id: BigAutoField
+    +name: CharField
+  }
+
+  class ItemTagMeta {
+    +db_table: str
+    +ordering: tuple
+  }
+
+  class ItemTagMap {
+    +item: ForeignKey
+    +tag: ForeignKey
+  }
+
+  class ItemTagMapMeta {
+    +db_table: str
+    +unique_together: tuple
+  }
+
+  class ItemOptionGroup {
+    +group_id: BigAutoField
+    +item: ForeignKey
+    +is_required: BooleanField
+    +is_variant: BooleanField
+    +max_select: IntegerField
+    +min_select: PositiveIntegerField
+    +name: TextField
+    +price_mode: CharField
+    +rank: IntegerField
+    +select_mode: CharField
+  }
+
+  class ItemOptionGroupMeta {
+    +db_table: str
+    +ordering: tuple
+    +constraints: list
+  }
+
+  class ItemOption {
+    +option_id: BigAutoField
+    +group: ForeignKey
+    +is_default: BooleanField
+    +multiplier: DecimalField
+    +name: TextField
+    +price_delta_cents: PositiveIntegerField
+    +rank: IntegerField
+  }
+
+  class ItemOptionMeta {
+    +db_table: str
+    +ordering: tuple
+  }
+
+  class ItemAvailability {
+    +item: ForeignKey
+    +dow: IntegerField
+    +start_date: DateField
+    +end_date: DateField
+    +start_time: TimeField
+    +end_time: TimeField
+  }
+
+  class ItemAvailabilityMeta {
+    +db_table: str
+    +unique_together: tuple
+    +constraints: list
+  }
+
+  class ServingStyle {
+    +style_id: BigAutoField
+    +code: CharField
+    +name: TextField
+    +notes: TextField
+    +price_mode: CharField
+    +price_value: DecimalField
+  }
+
+  class ServingStyleMeta {
+    +db_table: str
+  }
+
+  class DinnerType {
+    +dinner_type_id: BigAutoField
+    +active: BooleanField
+    +base_price_cents: PositiveIntegerField
+    +code: CharField
+    +description: TextField
+    +name: TextField
+  }
+
+  class DinnerTypeMeta {
+    +db_table: str
+  }
+
+  class DinnerTypeDefaultItem {
+    +dinner_type: ForeignKey
+    +item: ForeignKey
+    +default_qty: DecimalField
+    +included_in_base: BooleanField
+    +notes: TextField
+  }
+
+  class DinnerTypeDefaultItemMeta {
+    +db_table: str
+    +unique_together: tuple
+  }
+
+  class DinnerStyleAllowed {
+    +dinner_type: ForeignKey
+    +style: ForeignKey
+  }
+
+  class DinnerStyleAllowedMeta {
+    +db_table: str
+    +unique_together: tuple
+  }
+
+  class PriceMode {
+    +name
+  }
+
+  class OptionSelectMode {
+    +name
+  }
+}
+
+package "apps.catalog.serializers" {
+  class AddonCardItemSerializer {
+    +tags
+  }
+
+  class AddonsPageResponseSerializer {
+    +category
+    +items
+    +meta: DictField
+  }
+
+  class CatalogBootstrapSerializer {
+    +categories
+    +dinners
+    +tags
+  }
+
+  class CategoryRefSerializer {
+  }
+
+  class DinnerFullSerializer {
+    +allowed_styles
+    +default_items
+    +dinner
+    +option_groups
+  }
+
+  class DinnerOptionGroupSerializer {
+    +options
+  }
+
+  class DinnerOptionSerializer {
+    +item_code: CharField
+    +item_name: CharField
+  }
+
+  class DinnerTypeDefaultItemSerializer {
+    +item
+  }
+
+  class DinnerTypeSerializer {
+  }
+
+  class ItemAvailabilitySerializer {
+  }
+
+  class ItemDetailResponseSerializer {
+  }
+
+  class ItemOptionGroupSerializer {
+    +options
+  }
+
+  class ItemOptionSerializer {
+  }
+
+  class ItemTagSerializer {
+  }
+
+  class MenuCategorySerializer {
+    +parent_id: IntegerField
+  }
+
+  class MenuCategoryTreeSerializer {
+    +children: SerializerMethodField
+    +get_children(obj: MenuCategory)
+  }
+
+  class MenuItemDetailSerializer {
+    +category
+    +option_groups
+  }
+
+  class MenuItemDetailWithExpandSerializer {
+    +availability
+    +tags
+    +to_representation(instance)
+  }
+
+  class ServingStyleSerializer {
+  }
+
+  class MenuItemDetailWithExpandSerializerMeta {
+  }
+
+  class MenuItemDetailSerializerMeta {
+  }
+}
+
+package "apps.catalog.views" {
+  class AddonsListPageAPIView {
+    +get(request, dinner_code: str)
+  }
+
+  class AddonsRecommendationsAPIView {
+    +get(request, dinner_code: str)
+  }
+
+  class CatalogBootstrapAPIView {
+    +get(request)
+  }
+
+  class DinnerFullAPIView {
+    +lookup_field: str
+    +lookup_url_kwarg: str
+    +get_queryset()
+    +retrieve(request)
+  }
+
+  class ItemDetailWithExpandAPIView {
+    +lookup_field: str
+    +lookup_url_kwarg: str
+    +serializer_class
+    +get_queryset()
+    +get_serializer_context()
+  }
+}
+
+package "apps.orders.models" {
+  class Order {
+    +id: BigAutoField
+    +customer: ForeignKey
+    +address_meta: JSONField
+    +card_last4: CharField
+    +delivery_address: TextField
+    +discount_cents: PositiveIntegerField
+    +geo_lat: DecimalField
+    +geo_lng: DecimalField
+    +meta: JSONField
+    +order_source: CharField
+    +ordered_at: DateTimeField
+    +payment_token: TextField
+    +place_label: TextField
+    +receiver_name: TextField
+    +receiver_phone: TextField
+    +status: CharField
+    +subtotal_cents: PositiveIntegerField
+    +total_cents: PositiveIntegerField
+  }
+
+  class OrderMeta {
+    +db_table: str
+    +indexes: list
+  }
+
+  class OrderDinner {
+    +id: BigAutoField
+    +order: ForeignKey
+    +dinner_type: ForeignKey
+    +style: ForeignKey
+    +base_price_cents: PositiveIntegerField
+    +notes: TextField
+    +person_label: TextField
+    +quantity: DecimalField
+    +style_adjust_cents: PositiveIntegerField
+  }
+
+  class OrderDinnerMeta {
+    +db_table: str
+  }
+
+  class OrderDinnerItem {
+    +id: BigAutoField
+    +order_dinner: ForeignKey
+    +item: ForeignKey
+    +change_type: CharField
+    +final_qty: DecimalField
+    +is_default: BooleanField
+    +unit_price_cents: PositiveIntegerField
+  }
+
+  class OrderDinnerItemMeta {
+    +db_table: str
+    +unique_together: tuple
+  }
+
+  class OrderDinnerOption {
+    +id: BigAutoField
+    +order_dinner: ForeignKey
+    +multiplier: DecimalField
+    +option_group_name: TextField
+    +option_name: TextField
+    +price_delta_cents: PositiveIntegerField
+  }
+
+  class OrderDinnerOptionMeta {
+    +db_table: str
+  }
+
+  class OrderItemOption {
+    +id: BigAutoField
+    +order_dinner_item: ForeignKey
+    +multiplier: DecimalField
+    +option_group_name: TextField
+    +option_name: TextField
+    +price_delta_cents: PositiveIntegerField
+  }
+
+  class OrderItemOptionMeta {
+    +db_table: str
+  }
+
+  class OrderSource {
+    +name
+  }
+
+  class OrderStatus {
+    +name
+  }
+
+  class ChangeType {
+    +name
+  }
+}
+
+package "apps.orders.serializers" {
+  class AdjustmentOutSerializer {
+    +label
+    +mode
+    +multiplier
+    +type
+    +value_cents
+  }
+
+  class CouponCodeSerializer {
+    +code: CharField
+  }
+
+  class DiscountLineOutSerializer {
+    +amount_cents
+    +code
+    +label
+    +type
+  }
+
+  class LineItemOutSerializer {
+    +item_code
+    +name
+    +options
+    +qty
+    +subtotal_cents
+    +unit_price_cents
+  }
+
+  class LineOptionOutSerializer {
+    +multiplier
+    +option_group_name
+    +option_name
+    +price_delta_cents
+  }
+
+  class OrderCreateRequestSerializer {
+    +address_meta: JSONField
+    +card_last4: CharField
+    +coupons
+    +customer_id: IntegerField
+    +delivery_address: CharField
+    +dinner
+    +fulfillment_type: ChoiceField
+    +geo_lat: DecimalField
+    +geo_lng: DecimalField
+    +items: ListField
+    +meta: JSONField
+    +order_source: ChoiceField
+    +payment_token: CharField
+    +place_label: CharField
+    +receiver_name: CharField
+    +receiver_phone: CharField
+    +validate(attrs)
+  }
+
+  class OrderDinnerItemOutSerializer {
+    +item_code
+    +item_name
+    +options
+  }
+
+  class OrderDinnerOptionOutSerializer {
+  }
+
+  class OrderDinnerOutSerializer {
+    +dinner_code
+    +dinner_name
+    +items
+    +options
+    +style_code
+    +style_name
+  }
+
+  class OrderDinnerSelectionSerializer {
+    +code
+    +dinner_options: ListField
+    +quantity: DecimalField
+    +style: CharField
+  }
+
+  class OrderItemOptionOutSerializer {
+  }
+
+  class OrderOutSerializer {
+    +dinners
+  }
+
+  class OrderOutSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class OrderDinnerOutSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class OrderDinnerItemOutSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class OrderDinnerOptionOutSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class OrderItemOptionOutSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class PricePreviewRequestSerializer {
+    +coupons
+    +customer_id
+    +dinner
+    +items: ListField
+    +order_source: ChoiceField
+  }
+
+  class PricePreviewResponseSerializer {
+    +adjustments
+    +discount_cents
+    +discounts
+    +line_items
+    +subtotal_cents
+    +total_cents
+  }
+}
+
+package "apps.orders.views" {
+  class OrderDetailAPIView {
+    +queryset
+    +serializer_class
+  }
+
+  class OrderListCreateAPIView {
+    +serializer_class
+    +get_queryset()
+    +post(request)
+  }
+
+  class OrderPricePreviewAPIView {
+    +post(request)
+  }
+}
+
+package "apps.promotion.apps" {
+  class PromotionConfig {
+    +default_auto_field: str
+    +label: str
+    +name: str
+  }
+}
+
+package "apps.promotion.models" {
+  class Coupon {
+    +CHANNEL_CHOICES: tuple
+    +KIND_CHOICES: tuple
+    +active: BooleanField
+    +channel: CharField
+    +code: CharField
+    +created_at: DateTimeField
+    +kind: CharField
+    +label: CharField
+    +max_discount_cents: IntegerField
+    +max_redemptions_global: IntegerField
+    +max_redemptions_per_user: IntegerField
+    +min_subtotal_cents: IntegerField
+    +name: CharField
+    +notes: TextField
+    +stackable_with_coupons: BooleanField
+    +stackable_with_membership: BooleanField
+    +updated_at: DateTimeField
+    +valid_from: DateTimeField
+    +valid_until: DateTimeField
+    +value: DecimalField
+    +is_valid_now(now): bool
+    +save()
+  }
+
+  class CouponMeta {
+    +db_table: str
+    +indexes: list
+  }
+
+  class CouponRedemption {
+    +amount_cents: IntegerField
+    +channel: CharField
+    +coupon: ForeignKey
+    +customer: ForeignKey
+    +order: ForeignKey
+    +redeemed_at: DateTimeField
+  }
+
+  class CouponRedemptionMeta {
+    +db_table: str
+    +indexes: list
+    +constraints: list
+  }
+
+  class Membership {
+    +active: BooleanField
+    +customer: OneToOneField
+    +label: CharField
+    +percent_off: DecimalField
+    +valid_from: DateTimeField
+    +valid_until: DateTimeField
+    +is_valid_now(now): bool
+  }
+
+  class MembershipMeta {
+    +db_table: str
+  }
+}
+
+package "apps.staff.models" {
+  class Staff {
+    +created_at: DateTimeField
+    +is_active: BooleanField
+    +is_anonymous: bool
+    +is_authenticated: bool
+    +password: CharField
+    +role: CharField
+    +username: CharField
+    +check_password(raw_password: str): bool
+    +set_password(raw_password: str)
+  }
+
+  class StaffMeta {
+    +db_table: str
+  }
+
+  class StaffRole {
+    +name
+  }
+}
+
+package "apps.staff.serializers" {
+  class CouponSerializer {
+  }
+
+  class CouponSerializerMeta {
+    +fields: tuple
+    +model
+    +read_only_fields: tuple
+  }
+
+  class MembershipSerializer {
+  }
+
+  class MembershipSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class StaffMeSerializer {
+  }
+
+  class StaffMeSerializerMeta {
+    +fields: tuple
+    +model
+    +read_only_fields: tuple
+  }
+
+  class StaffLoginSerializer {
+    +username: CharField
+    +password: CharField
+  }
+
+  class OrderDinnerSerializer {
+    +dinner_type: SerializerMethodField
+    +items
+    +options
+    +style: SerializerMethodField
+    +get_dinner_type(obj)
+    +get_style(obj)
+  }
+
+  class OrderDinnerSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class OrderDinnerItemSerializer {
+    +item: SerializerMethodField
+    +options
+    +get_item(obj)
+  }
+
+  class OrderDinnerItemSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class OrderDinnerOptionSerializer {
+  }
+
+  class OrderDinnerOptionSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class OrderItemOptionSerializer {
+  }
+
+  class OrderItemOptionSerializerMeta {
+    +fields: tuple
+    +model
+  }
+
+  class StaffOrderDetailSerializer {
+    +dinners
+    +coupons: SerializerMethodField
+    +membership: SerializerMethodField
+    +get_coupons(order: Order)
+    +get_membership(order: Order)
+  }
+
+  class StaffOrderDetailSerializerMeta {
+    +fields: tuple
+    +model
+  }
+}
+
+package "apps.staff.views" {
+  class CouponDetailView {
+    +authentication_classes: list
+    +permission_classes: list
+    +get_object(code: str): Coupon
+    +get(request, code: str)
+    +patch(request, code: str)
+    +delete(request, code: str)
+  }
+
+  class CouponsView {
+    +authentication_classes: list
+    +permission_classes: list
+    +get(request)
+    +post(request)
+  }
+
+  class MembershipDetailView {
+    +authentication_classes: list
+    +permission_classes: list
+    +get_object(customer_id: int): Membership
+    +get(request, customer_id: int)
+    +patch(request, customer_id: int)
+    +delete(request, customer_id: int)
+  }
+
+  class MembershipsView {
+    +authentication_classes: list
+    +permission_classes: list
+    +get(request)
+    +post(request)
+  }
+
+  class OrdersSSEView {
+    +authentication_classes: list
+    +permission_classes: list
+    +dispatch(request)
+    +get(request)
+  }
+
+  class StaffLoginView {
+    +permission_classes: list
+    +post(request)
+  }
+
+  class StaffLogoutView {
+    +permission_classes: list
+    +post(request)
+  }
+
+  class StaffMeView {
+    +authentication_classes: list
+    +get(request)
+  }
+
+  class StaffOrderDetailView {
+    +authentication_classes: list
+    +permission_classes: list
+    +get(request, order_id: int)
+  }
+}
+
+package "apps.staff.auth" {
+  class StaffJWTAuthentication {
+    +authenticate(request)
+  }
+}
+
+' =======================
+' Relationships from pyreverse/classes.dot
+' =======================
+MenuItemDetailWithExpandSerializer <|-- ItemDetailResponseSerializer
+MenuItemDetailSerializer <|-- MenuItemDetailWithExpandSerializer
+MenuItemDetailSerializerMeta <|-- MenuItemDetailWithExpandSerializerMeta
+AddonsPageResponseSerializer *-- AddonCardItemSerializer : items
+MenuItemDetailSerializer *-- CategoryRefSerializer : category
+DinnerFullSerializer *-- DinnerOptionGroupSerializer : option_groups
+DinnerOptionGroupSerializer *-- DinnerOptionSerializer : options
+DinnerFullSerializer *-- DinnerTypeDefaultItemSerializer : default_items
+CatalogBootstrapSerializer *-- DinnerTypeSerializer : dinners
+DinnerFullSerializer *-- DinnerTypeSerializer : dinner
+MenuItemDetailWithExpandSerializer *-- ItemAvailabilitySerializer : availability
+MenuItemDetailSerializer *-- ItemOptionGroupSerializer : option_groups
+ItemOptionGroupSerializer *-- ItemOptionSerializer : options
+AddonCardItemSerializer *-- ItemTagSerializer : tags
+CatalogBootstrapSerializer *-- ItemTagSerializer : tags
+MenuItemDetailWithExpandSerializer *-- ItemTagSerializer : tags
+AddonsPageResponseSerializer *-- MenuCategorySerializer : category
+CatalogBootstrapSerializer *-- MenuCategoryTreeSerializer : categories
+DinnerTypeDefaultItemSerializer *-- MenuItemDetailSerializer : item
+DinnerFullSerializer *-- ServingStyleSerializer : allowed_styles
+PricePreviewResponseSerializer *-- AdjustmentOutSerializer : adjustments
+OrderCreateRequestSerializer *-- CouponCodeSerializer : coupons
+PricePreviewRequestSerializer *-- CouponCodeSerializer : coupons
+PricePreviewResponseSerializer *-- DiscountLineOutSerializer : discounts
+PricePreviewResponseSerializer *-- LineItemOutSerializer : line_items
+LineItemOutSerializer *-- LineOptionOutSerializer : options
+OrderDinnerOutSerializer *-- OrderDinnerItemOutSerializer : items
+OrderDinnerOutSerializer *-- OrderDinnerOptionOutSerializer : options
+OrderOutSerializer *-- OrderDinnerOutSerializer : dinners
+OrderCreateRequestSerializer *-- OrderDinnerSelectionSerializer : dinner
+PricePreviewRequestSerializer *-- OrderDinnerSelectionSerializer : dinner
+OrderDinnerItemOutSerializer *-- OrderItemOptionOutSerializer : options
+OrderDinnerSerializer *-- OrderDinnerItemSerializer : items
+OrderDinnerSerializer *-- OrderDinnerOptionSerializer : options
+StaffOrderDetailSerializer *-- OrderDinnerSerializer : dinners
+OrderDinnerItemSerializer *-- OrderItemOptionSerializer : options
+MeSerializerMeta o-- Customer : model
+RegisterSerializerMeta o-- Customer : model
+DinnerOptionSerializerMeta o-- DinnerOption : model
+DinnerOptionGroupSerializerMeta o-- DinnerOptionGroup : model
+DinnerTypeSerializerMeta o-- DinnerType : model
+DinnerTypeDefaultItemSerializerMeta o-- DinnerTypeDefaultItem : model
+ItemAvailabilitySerializerMeta o-- ItemAvailability : model
+ItemOptionSerializerMeta o-- ItemOption : model
+ItemOptionGroupSerializerMeta o-- ItemOptionGroup : model
+ItemTagSerializerMeta o-- ItemTag : model
+CategoryRefSerializerMeta o-- MenuCategory : model
+MenuCategorySerializerMeta o-- MenuCategory : model
+MenuCategoryTreeSerializerMeta o-- MenuCategory : model
+AddonCardItemSerializerMeta o-- MenuItem : model
+MenuItemDetailSerializerMeta o-- MenuItem : model
+ServingStyleSerializerMeta o-- ServingStyle : model
+ItemDetailWithExpandAPIView o-- ItemDetailResponseSerializer : serializer_class
+OrderOutSerializerMeta o-- Order : model
+StaffOrderDetailSerializerMeta o-- Order : model
+OrderDinnerOutSerializerMeta o-- OrderDinner : model
+OrderDinnerSerializerMeta o-- OrderDinner : model
+OrderDinnerItemOutSerializerMeta o-- OrderDinnerItem : model
+OrderDinnerItemSerializerMeta o-- OrderDinnerItem : model
+OrderDinnerOptionOutSerializerMeta o-- OrderDinnerOption : model
+OrderDinnerOptionSerializerMeta o-- OrderDinnerOption : model
+OrderItemOptionOutSerializerMeta o-- OrderItemOption : model
+OrderItemOptionSerializerMeta o-- OrderItemOption : model
+OrderDetailAPIView o-- OrderOutSerializer : serializer_class
+OrderListCreateAPIView o-- OrderOutSerializer : serializer_class
+CouponSerializerMeta o-- Coupon : model
+MembershipSerializerMeta o-- Membership : model
+StaffMeSerializerMeta o-- Staff : model
+
+@enduml
