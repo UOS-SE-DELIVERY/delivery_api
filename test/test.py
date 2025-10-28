@@ -414,7 +414,7 @@ def main() -> None:
     r = call(S_CUST, "POST", f"{ACCOUNTS}/logout", expect=(200,204), label="auth/logout")
     print("\n=== LOGOUT ==="); print(f"HTTP {r.status_code}")
 
-    print("\nAll steps completed. ✅")
+    print("\nAll steps completed.")
 
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
