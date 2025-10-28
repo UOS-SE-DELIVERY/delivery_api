@@ -8,7 +8,6 @@ skinparam databaseBackgroundColor #FFFFFF
 skinparam databaseBorderColor #555
 ' top to bottom direction
 left to right direction
-top to bottom direction
 
 rectangle "Clients (React)" as L1 {
   [WebApp Customer SPA] as web

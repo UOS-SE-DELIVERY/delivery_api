@@ -1,4 +1,10 @@
+# apps/orders/views.py
 from __future__ import annotations
+from .serializers import OrderOutSerializer
+
+from .models import Order, OrderStatus
+
+
 from decimal import Decimal
 from typing import Dict, List
 
@@ -33,7 +39,129 @@ from .services.pricing import (
     validate_style_allowed, validate_item_options_for_item, resolve_dinner_options_for_dinner,
 )
 
+# ===== drf-spectacular =====
+from drf_spectacular.utils import (
+    extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse, inline_serializer
+)
+from rest_framework import serializers
+
+
 # ---------- 주문 목록/생성 ----------
+@extend_schema(
+    methods=['GET'],
+    tags=['Orders'],
+    summary='주문 목록 조회',
+    description=(
+        "주문 목록을 최신순으로 반환합니다. "
+        "`customer_id`로 특정 고객의 주문만 필터링할 수 있습니다."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name='customer_id', type=int, location=OpenApiParameter.QUERY,
+            description='특정 고객의 주문만 조회'
+        ),
+    ],
+    responses=OrderOutSerializer,  # ListCreateAPIView → 스펙타큘러가 (paginated) list로 감쌉니다.
+)
+@extend_schema(
+    methods=['POST'],
+    tags=['Orders'],
+    summary='주문 생성',
+    description=(
+        "디너(+스타일/옵션)와 개별 아이템 라인으로 주문을 생성합니다. "
+        "합계/할인은 promotion 서비스의 `evaluate_discounts` 결과를 반영하여 고정됩니다."
+    ),
+    request=OrderCreateRequestSerializer,
+    responses={
+        201: OrderOutSerializer,
+        400: OpenApiResponse(description='유효하지 않은 입력(예: dinner/style/item 코드 오류 등)'),
+    },
+    examples=[
+        OpenApiExample(
+            name='요청 예시(배달)',
+            value={
+                "customer_id": 6,
+                "order_source": "GUI",
+                "fulfillment_type": "DELIVERY",
+                "dinner": {
+                    "code": "valentine",
+                    "quantity": "1",
+                    "style": "simple",
+                    "dinner_options": [11, 12]
+                },
+                "items": [
+                    {"code": "KIMCHI", "qty": "2", "options": [101]}
+                ],
+                "receiver_name": "홍길동",
+                "receiver_phone": "010-1111-2222",
+                "delivery_address": "서울 중구 을지로 00",
+                "geo_lat": 37.566,
+                "geo_lng": 126.978,
+                "place_label": "집",
+                "address_meta": {"note": "경비실 맡김"},
+                "payment_token": "tok_123",
+                "card_last4": "4242",
+                "meta": {"note": "문 앞에 놓아주세요"},
+                "coupons": [{"code": "WELCOME10"}]
+            },
+            request_only=True
+        ),
+        OpenApiExample(
+            name='응답 예시(요약)',
+            value={
+                "id": 123,
+                "customer_id": 6,
+                "ordered_at": "2025-10-28T10:10:10+09:00",
+                "status": "pending",
+                "order_source": "GUI",
+                "receiver_name": "홍길동",
+                "receiver_phone": "010-1111-2222",
+                "delivery_address": "서울 중구 을지로 00",
+                "geo_lat": "37.566000",
+                "geo_lng": "126.978000",
+                "place_label": "집",
+                "address_meta": {"note":"경비실 맡김"},
+                "payment_token": "tok_123",
+                "card_last4": "4242",
+                "subtotal_cents": 21000,
+                "discount_cents": 1000,
+                "total_cents": 20000,
+                "meta": {
+                    "note": "문 앞에 놓아주세요",
+                    "discounts": [
+                        {"type":"coupon","label":"WELCOME10","code":"WELCOME10","amount_cents":1000}
+                    ]
+                },
+                "dinners": [
+                    {
+                        "id": 555,
+                        "dinner_code": "valentine", "dinner_name": "Valentine",
+                        "style_code": "simple", "style_name": "Simple",
+                        "person_label": None, "quantity": "1.00",
+                        "base_price_cents": 45000, "style_adjust_cents": 0,
+                        "notes": None,
+                        "items": [
+                            {
+                                "id": 9001,
+                                "item_code": "KIMCHI", "item_name": "김치",
+                                "final_qty": "2.00",
+                                "unit_price_cents": 3000,
+                                "is_default": False, "change_type": "added",
+                                "options": [
+                                    {"id": 1, "option_group_name":"추가","option_name":"곱빼기","price_delta_cents":0,"multiplier":"1.000"}
+                                ]
+                            }
+                        ],
+                        "options": [
+                            {"id": 1, "option_group_name":"Rice","option_name":"잡곡","price_delta_cents":0,"multiplier":None}
+                        ]
+                    }
+                ]
+            },
+            response_only=True
+        )
+    ]
+)
 class OrderListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = OrderOutSerializer
 
@@ -217,7 +345,13 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
 
         return Response(OrderOutSerializer(order).data, status=201)
 
+
 # ---------- 주문 단건 ----------
+@extend_schema(
+    tags=['Orders'],
+    summary='주문 단건 조회',
+    responses=OrderOutSerializer
+)
 class OrderDetailAPIView(generics.RetrieveAPIView):
     serializer_class = OrderOutSerializer
     queryset = (Order.objects
@@ -229,7 +363,56 @@ class OrderDetailAPIView(generics.RetrieveAPIView):
                                       .prefetch_related("items__options", "options")))
                 ))
 
+
 # ---------- 가격 프리뷰 ----------
+@extend_schema(
+    tags=['Orders/Price'],
+    summary='가격 프리뷰',
+    description=(
+        "디너/스타일/옵션·개별 아이템을 기준으로 **예상 금액**을 계산합니다. "
+        "스타일/디너 옵션의 가산/배수 규칙을 적용하고, 할인은 `evaluate_discounts` 결과를 반영합니다. "
+        "실제 주문을 생성하지 않으며, 금액은 시점/규칙에 따라 달라질 수 있습니다."
+    ),
+    request=PricePreviewRequestSerializer,
+    responses=PricePreviewResponseSerializer,
+    examples=[
+        OpenApiExample(
+            name='요청 예시',
+            value={
+                "customer_id": 6,
+                "order_source": "GUI",
+                "dinner": {"code": "valentine", "quantity": "1", "style": "simple", "dinner_options": [11]},
+                "items": [{"code": "KIMCHI", "qty": "2", "options": [101]}],
+                "coupons": [{"code": "WELCOME10"}]
+            },
+            request_only=True
+        ),
+        OpenApiExample(
+            name='응답 예시',
+            value={
+                "line_items": [
+                    {
+                        "item_code": "KIMCHI", "name": "김치",
+                        "qty": "2.00", "unit_price_cents": 3000,
+                        "options": [{"option_group_name": "추가", "option_name": "곱빼기", "price_delta_cents": 0, "multiplier": "1.000"}],
+                        "subtotal_cents": 6000
+                    }
+                ],
+                "adjustments": [
+                    {"type": "style", "label": "Simple", "mode": "addon", "value_cents": 0, "multiplier": None},
+                    {"type": "dinner_option", "label": "잡곡", "mode": "addon", "value_cents": 0, "multiplier": None}
+                ],
+                "subtotal_cents": 21000,
+                "discounts": [
+                    {"type":"coupon","label":"WELCOME10","code":"WELCOME10","amount_cents":1000}
+                ],
+                "discount_cents": 1000,
+                "total_cents": 20000
+            },
+            response_only=True
+        )
+    ]
+)
 class OrderPricePreviewAPIView(APIView):
     """
     POST /api/orders/price/preview
@@ -353,3 +536,79 @@ class OrderPricePreviewAPIView(APIView):
             "total_cents": int(total_after),
         }
         return Response(PricePreviewResponseSerializer(out).data, status=200)
+
+
+# ---------- 상태 전이 액션 ----------
+@extend_schema(
+    tags=['Orders/Actions'],
+    summary='주문 액션 실행',
+    description=(
+        "주문 상태 전이 액션을 실행합니다.\n\n"
+        "**지원 액션**\n"
+        "- `accept` → preparing\n"
+        "- `mark-ready` (또는 `ready`) — 준비 완료 타임스탬프만 기록\n"
+        "- `out-for-delivery` (또는 `dispatch`, `out`) → out_for_delivery\n"
+        "- `deliver` (또는 `delivered`) → delivered\n"
+        "- `cancel` → canceled (사유 필요)\n\n"
+        "도메인 규칙 위반 시 409 Conflict로 에러를 반환합니다."
+    ),
+    parameters=[
+        OpenApiParameter(name='id', type=int, location=OpenApiParameter.PATH, description='주문 ID'),
+    ],
+    request=inline_serializer(
+        name='OrderActionReq',
+        fields={
+            'action': serializers.ChoiceField(
+                choices=['accept','mark-ready','ready','out-for-delivery','dispatch','out','deliver','delivered','cancel']
+            ),
+            'reason': serializers.CharField(required=False, allow_null=True, allow_blank=True),
+        }
+    ),
+    responses={
+        200: OrderOutSerializer,
+        400: OpenApiResponse(description='지원하지 않는 action / 잘못된 입력'),
+        409: OpenApiResponse(description='도메인 규칙 위반(상태 전이 불가 등)'),
+    },
+    examples=[
+        OpenApiExample(
+            name='accept',
+            value={"action": "accept"},
+            request_only=True
+        ),
+        OpenApiExample(
+            name='out-for-delivery',
+            value={"action": "out-for-delivery"},
+            request_only=True
+        ),
+        OpenApiExample(
+            name='cancel(사유 포함)',
+            value={"action": "cancel", "reason": "고객 요청 취소"},
+            request_only=True
+        )
+    ]
+)
+class OrderActionAPIView(APIView):
+    """POST /api/orders/{id}/action
+    {"action": "accept|mark-ready|out-for-delivery|deliver|cancel", "reason": "..."}
+    """
+    def post(self, request, pk: int):
+        order = get_object_or_404(Order, pk=pk)
+        action = str(request.data.get("action", "")).strip().lower()
+        reason = request.data.get("reason") or None
+        staff_id = getattr(getattr(request, "user", None), "id", None)
+        try:
+            if action == "accept":
+                order.accept(staff_id)
+            elif action in ("mark-ready", "ready"):
+                order.mark_ready(staff_id)
+            elif action in ("out-for-delivery", "dispatch", "out"):
+                order.out_for_delivery(staff_id)
+            elif action in ("deliver", "delivered"):
+                order.deliver(staff_id)
+            elif action == "cancel":
+                order.cancel(staff_id, reason=reason)
+            else:
+                return Response({"detail": "Unsupported action"}, status=400)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=409)
+        return Response(OrderOutSerializer(order).data, status=200)

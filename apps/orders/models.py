@@ -1,3 +1,7 @@
+from django.utils import timezone
+
+from django.db import transaction
+
 from django.db import models
 from django.db.models import Q
 from apps.accounts.models import Customer
@@ -48,6 +52,97 @@ class Order(models.Model):
         indexes = [models.Index(fields=["customer", "-ordered_at"], name="idx_orders_customer_recent")]
 
     def __str__(self): return f"Order#{self.id}"
+
+
+    # ===== Domain helpers (refactor) =====
+    def _append_staff_op(self, event: str, by: int | None, note: str | None = None) -> None:
+        m = dict(self.meta or {}) if self.meta else {}
+        ops = list(m.get("staff_ops", []))
+        from django.utils import timezone as _tz
+        ops.append({"event": event, "by": by, "at": _tz.now().isoformat(), "note": note or ""})
+        m["staff_ops"] = ops
+        self.meta = m
+
+    def _notify(self, event_name: str, payload: dict) -> None:
+        # Minimal Postgres NOTIFY to integrate with staff SSE (channel: orders_events)
+        try:
+            from django.conf import settings as _settings
+            from django.db import connections as _connections, transaction as _tx
+            import json as _json
+            channels = list(getattr(_settings, "ORDERS_NOTIFY_CHANNELS", ["orders_events"]))
+            using = "default"
+            msg = dict(payload or {})
+            msg.setdefault("event", event_name)
+            raw = _json.dumps(msg, ensure_ascii=False)
+
+            def _do_notify():
+                with _connections[using].cursor() as cur:
+                    for ch in channels:
+                        cur.execute("SELECT pg_notify(%s, %s)", [ch, raw])
+
+            if _tx.get_connection(using).in_atomic_block:
+                _tx.on_commit(_do_notify)
+            else:
+                _do_notify()
+        except Exception:
+            # No-op on failure
+            pass
+
+    # ===== State transitions (behavior methods) =====
+    def accept(self, by_staff_id: int | None = None) -> "Order":
+        if self.status != OrderStatus.PENDING:
+            raise Exception("Only pending orders can be accepted.")
+        from django.db import transaction as _tx
+        with _tx.atomic():
+            self.status = OrderStatus.PREP
+            self._append_staff_op("accept", by_staff_id)
+            self.save(update_fields=["status", "meta"])
+            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status})
+        return self
+
+    def mark_ready(self, by_staff_id: int | None = None) -> "Order":
+        if self.status != OrderStatus.PREP:
+            raise Exception("Only preparing orders can be marked ready.")
+        from django.db import transaction as _tx
+        with _tx.atomic():
+            self._append_staff_op("mark_ready", by_staff_id)
+            self.save(update_fields=["meta"])
+            self._notify("order_updated", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "ready": True})
+        return self
+
+    def out_for_delivery(self, by_staff_id: int | None = None) -> "Order":
+        if self.status != OrderStatus.PREP:
+            raise Exception("Only preparing orders can go out for delivery.")
+        from django.db import transaction as _tx
+        with _tx.atomic():
+            self.status = OrderStatus.OUT
+            self._append_staff_op("out_for_delivery", by_staff_id)
+            self.save(update_fields=["status", "meta"])
+            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status})
+        return self
+
+    def deliver(self, by_staff_id: int | None = None) -> "Order":
+        if self.status != OrderStatus.OUT:
+            raise Exception("Only orders out for delivery can be delivered.")
+        from django.db import transaction as _tx
+        with _tx.atomic():
+            self.status = OrderStatus.DELIVERED
+            self._append_staff_op("deliver", by_staff_id)
+            self.save(update_fields=["status", "meta"])
+            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status})
+        return self
+
+    def cancel(self, by_staff_id: int | None = None, reason: str | None = None) -> "Order":
+        if self.status in (OrderStatus.DELIVERED, OrderStatus.CANCELED):
+            raise Exception("Cannot cancel already completed/canceled order.")
+        from django.db import transaction as _tx
+        with _tx.atomic():
+            self.status = OrderStatus.CANCELED
+            self._append_staff_op("cancel", by_staff_id, reason)
+            self.save(update_fields=["status", "meta"])
+            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status, "reason": reason or ""})
+        return self
+
 
 class OrderDinner(models.Model):
     id = models.BigAutoField(primary_key=True)

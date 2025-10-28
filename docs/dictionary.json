@@ -1,0 +1,282 @@
+{
+  "servingStyles": {
+    "simple":  { "id": 1, "name": "Simple",  "price_mode": "multiplier", "price_value": "1.00" },
+    "grand":   { "id": 2, "name": "Grand",   "price_mode": "multiplier", "price_value": "1.20" },
+    "deluxe":  { "id": 3, "name": "Deluxe",  "price_mode": "multiplier", "price_value": "1.40" }
+  },
+
+  "dinnerTypes": {
+    "valentine": {
+      "id": 1,
+      "name": "Valentine Dinner",
+      "base_price_cents": 150000,
+      "allowed_styles": ["simple","grand","deluxe"],
+      "defaults": [
+        { "item_code": "wine",         "qty": 1, "included_in_base": true },
+        { "item_code": "steak",        "qty": 2, "included_in_base": true },
+        { "item_code": "baguette",     "qty": 2, "included_in_base": true },
+        { "item_code": "coffee_pot",   "qty": 1, "included_in_base": true }
+      ],
+      "option_groups": [
+        {
+          "id": 1,
+          "name": "Beverage Upgrade",
+          "select_mode": "multi",
+          "min_select": 0, "max_select": 2,
+          "is_required": false, "price_mode": "addon",
+          "options": [
+            { "id": 1, "kind": "item",  "item_code": "wine",       "name": null, "price_delta_cents": 50000 },
+            { "id": 2, "kind": "item",  "item_code": "champagne",  "name": null, "price_delta_cents": 70000 }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Dessert Upgrade",
+          "select_mode": "single",
+          "min_select": 0, "max_select": 1,
+          "is_required": false, "price_mode": "addon",
+          "options": [
+            { "id": 3, "kind": "named", "item_code": null, "name": "Cheese Plate", "price_delta_cents": 15000 }
+          ]
+        }
+      ]
+    },
+
+    "french": {
+      "id": 2,
+      "name": "French Dinner",
+      "base_price_cents": 160000,
+      "allowed_styles": ["simple","grand","deluxe"],
+      "defaults": [
+        { "item_code": "wine",        "qty": 1, "included_in_base": true },
+        { "item_code": "steak",       "qty": 1, "included_in_base": true },
+        { "item_code": "baguette",    "qty": 3, "included_in_base": true },
+        { "item_code": "coffee_pot",  "qty": 1, "included_in_base": true }
+      ],
+      "option_groups": [
+        {
+          "id": 3,
+          "name": "Beverage Upgrade",
+          "select_mode": "multi",
+          "min_select": 0, "max_select": 2,
+          "is_required": false, "price_mode": "addon",
+          "options": [
+            { "id": 4, "kind": "item", "item_code": "wine",      "name": null, "price_delta_cents": 50000 },
+            { "id": 5, "kind": "item", "item_code": "champagne", "name": null, "price_delta_cents": 70000 }
+          ]
+        }
+      ]
+    },
+
+    "english": {
+      "id": 3,
+      "name": "English Dinner",
+      "base_price_cents": 140000,
+      "allowed_styles": ["simple","grand","deluxe"],
+      "defaults": [
+        { "item_code": "steak",       "qty": 1, "included_in_base": true },
+        { "item_code": "baguette",    "qty": 4, "included_in_base": true },
+        { "item_code": "coffee_pot",  "qty": 1, "included_in_base": true }
+      ],
+      "option_groups": [
+        {
+          "id": 4,
+          "name": "Beverage Upgrade",
+          "select_mode": "multi",
+          "min_select": 0, "max_select": 2,
+          "is_required": false, "price_mode": "addon",
+          "options": [
+            { "id": 6, "kind": "item", "item_code": "wine",      "name": null, "price_delta_cents": 50000 },
+            { "id": 7, "kind": "item", "item_code": "champagne", "name": null, "price_delta_cents": 70000 }
+          ]
+        }
+      ]
+    },
+
+    "champagne_feast": {
+      "id": 4,
+      "name": "Champagne Feast",
+      "base_price_cents": 180000,
+      "allowed_styles": ["simple","grand","deluxe"],
+      "defaults": [
+        { "item_code": "champagne",   "qty": 1, "included_in_base": true },
+        { "item_code": "baguette",    "qty": 4, "included_in_base": true },
+        { "item_code": "coffee_pot",  "qty": 1, "included_in_base": true },
+        { "item_code": "wine",        "qty": 1, "included_in_base": true },
+        { "item_code": "steak",       "qty": 1, "included_in_base": true }
+      ],
+      "option_groups": [
+        {
+          "id": 5,
+          "name": "Champagne Extras",
+          "select_mode": "multi",
+          "min_select": 0, "max_select": 3,
+          "is_required": false, "price_mode": "addon",
+          "options": [
+            { "id": 8, "kind": "item", "item_code": "champagne", "name": null, "price_delta_cents": 70000 }
+          ]
+        }
+      ]
+    }
+  },
+
+  "menuItems": {
+    "champagne":       { "id": 1, "name": "Champagne (Bottle)", "category": "Drinks",      "unit": "병", "base_price_cents": 70000, "tags": ["alcohol","sparkling"] },
+    "wine":            { "id": 2, "name": "Wine (Bottle)",      "category": "Drinks",      "unit": "병", "base_price_cents": 50000, "tags": ["alcohol","wine"] },
+    "steak":           { "id": 3, "name": "Steak",              "category": "Mains",       "unit": "인분", "base_price_cents": 30000, "tags": ["meat"] },
+    "baguette":        { "id": 4, "name": "Baguette",           "category": "Bread",       "unit": "개", "base_price_cents": 3000,  "tags": ["bread"] },
+    "coffee_pot":      { "id": 5, "name": "Coffee (Pot)",       "category": "Coffee & Tea","unit": "포트", "base_price_cents": 8000,  "tags": ["caffeine"] },
+    "garlic_bread":    { "id": 6, "name": "Garlic Bread",       "category": "Add-ons",     "unit": "개", "base_price_cents": 4000,  "tags": [] },
+    "sparkling_water": { "id": 7, "name": "Sparkling Water",    "category": "Add-ons",     "unit": "병", "base_price_cents": 3000,  "tags": [] },
+    "petit_dessert":   { "id": 8, "name": "Petit Dessert",      "category": "Add-ons",     "unit": "개", "base_price_cents": 5000,  "tags": [] },
+    "espresso_shot":   { "id": 9, "name": "Espresso Shot",      "category": "Add-ons",     "unit": "잔", "base_price_cents": 2500,  "tags": [] }
+  },
+
+  "itemOptionGroups": {
+    "steak": [
+      {
+        "id": 1, "name": "굽기", "select_mode": "single",
+        "min_select": 1, "max_select": 1, "is_required": true, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 1,  "name": "레어",   "price_delta_cents": 0, "multiplier": "1.000", "is_default": false },
+          { "id": 2,  "name": "미디엄", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true },
+          { "id": 3,  "name": "웰던",   "price_delta_cents": 0, "multiplier": "1.000", "is_default": false }
+        ]
+      },
+      {
+        "id": 4, "name": "사이즈", "select_mode": "single",
+        "min_select": 1, "max_select": 1, "is_required": true, "is_variant": true, "price_mode": "multiplier",
+        "options": [
+          { "id": 9,  "name": "150g", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true  },
+          { "id": 10, "name": "250g", "price_delta_cents": 0, "multiplier": "1.500", "is_default": false },
+          { "id": 11, "name": "350g", "price_delta_cents": 0, "multiplier": "2.000", "is_default": false }
+        ]
+      },
+      {
+        "id": 6, "name": "시즈닝", "select_mode": "multi",
+        "min_select": 0, "max_select": 2, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 14, "name": "후추 추가",   "price_delta_cents": 0,    "multiplier": "1.000", "is_default": false },
+          { "id": 15, "name": "갈릭 버터",   "price_delta_cents": 2000, "multiplier": "1.000", "is_default": false },
+          { "id": 16, "name": "트러플 소금", "price_delta_cents": 3000, "multiplier": "1.000", "is_default": false }
+        ]
+      },
+      {
+        "id": 7, "name": "소스", "select_mode": "single",
+        "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 17, "name": "페퍼 소스",    "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false },
+          { "id": 18, "name": "머쉬룸 소스",  "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false },
+          { "id": 19, "name": "레드와인 소스","price_delta_cents": 1500, "multiplier": "1.000", "is_default": false }
+        ]
+      }
+    ],
+
+    "baguette": [
+      {
+        "id": 2, "name": "추가 바게트", "select_mode": "multi",
+        "min_select": 0, "max_select": 4, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 4, "name": "+1", "price_delta_cents": 3000,  "multiplier": "1.000", "is_default": false },
+          { "id": 5, "name": "+2", "price_delta_cents": 6000,  "multiplier": "1.000", "is_default": false },
+          { "id": 6, "name": "+3", "price_delta_cents": 9000,  "multiplier": "1.000", "is_default": false },
+          { "id": 7, "name": "+4", "price_delta_cents": 12000, "multiplier": "1.000", "is_default": false }
+        ]
+      },
+      {
+        "id": 8, "name": "버터/디핑", "select_mode": "multi",
+        "min_select": 0, "max_select": 2, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 20, "name": "가염 버터",        "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false },
+          { "id": 21, "name": "갈릭 허브버터",    "price_delta_cents": 1500, "multiplier": "1.000", "is_default": false },
+          { "id": 22, "name": "올리브오일&발사믹","price_delta_cents": 1500, "multiplier": "1.000", "is_default": false }
+        ]
+      }
+    ],
+
+    "champagne": [
+      {
+        "id": 3, "name": "샴페인 추가 병", "select_mode": "single",
+        "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 8, "name": "+1병", "price_delta_cents": 70000, "multiplier": "1.000", "is_default": false }
+        ]
+      },
+      {
+        "id": 12, "name": "서빙", "select_mode": "single",
+        "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 31, "name": "아이스버킷", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true  },
+          { "id": 32, "name": "잔에 서빙", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false }
+        ]
+      }
+    ],
+
+    "wine": [
+      {
+        "id": 11, "name": "서빙", "select_mode": "single",
+        "min_select": 0, "max_select": 1, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 29, "name": "상온",  "price_delta_cents": 0, "multiplier": "1.000", "is_default": true  },
+          { "id": 30, "name": "차갑게","price_delta_cents": 0, "multiplier": "1.000", "is_default": false }
+        ]
+      }
+    ],
+
+    "coffee_pot": [
+      {
+        "id": 5, "name": "사이즈", "select_mode": "single",
+        "min_select": 1, "max_select": 1, "is_required": true, "is_variant": true, "price_mode": "multiplier",
+        "options": [
+          { "id": 12, "name": "기본", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true  },
+          { "id": 13, "name": "라지", "price_delta_cents": 0, "multiplier": "1.500", "is_default": false }
+        ]
+      },
+      {
+        "id": 9, "name": "샷 추가", "select_mode": "multi",
+        "min_select": 0, "max_select": 3, "is_required": false, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 23, "name": "+1샷", "price_delta_cents": 1000, "multiplier": "1.000", "is_default": false },
+          { "id": 24, "name": "+2샷", "price_delta_cents": 2000, "multiplier": "1.000", "is_default": false },
+          { "id": 25, "name": "+3샷", "price_delta_cents": 3000, "multiplier": "1.000", "is_default": false }
+        ]
+      },
+      {
+        "id": 10, "name": "원두 선택", "select_mode": "single",
+        "min_select": 1, "max_select": 1, "is_required": true, "is_variant": false, "price_mode": "addon",
+        "options": [
+          { "id": 26, "name": "라이트 로스트", "price_delta_cents": 0, "multiplier": "1.000", "is_default": false },
+          { "id": 27, "name": "미디엄 로스트", "price_delta_cents": 0, "multiplier": "1.000", "is_default": true  },
+          { "id": 28, "name": "다크 로스트",   "price_delta_cents": 0, "multiplier": "1.000", "is_default": false }
+        ]
+      }
+    ]
+  },
+
+  "itemAvailability": {
+    "champagne": [
+      { "dow": 0, "start_time": "10:00:00", "end_time": "22:00:00" },
+      { "dow": 1, "start_time": "10:00:00", "end_time": "22:00:00" },
+      { "dow": 2, "start_time": "10:00:00", "end_time": "22:00:00" },
+      { "dow": 3, "start_time": "10:00:00", "end_time": "22:00:00" },
+      { "dow": 4, "start_time": "10:00:00", "end_time": "22:00:00" },
+      { "dow": 5, "start_time": "10:00:00", "end_time": "23:00:00" },
+      { "dow": 6, "start_time": "10:00:00", "end_time": "23:00:00" }
+    ],
+    "coffee_pot": [
+      { "dow": 0, "start_time": "08:00:00", "end_time": "23:59:59" },
+      { "dow": 1, "start_time": "08:00:00", "end_time": "23:59:59" },
+      { "dow": 2, "start_time": "08:00:00", "end_time": "23:59:59" },
+      { "dow": 3, "start_time": "08:00:00", "end_time": "23:59:59" },
+      { "dow": 4, "start_time": "08:00:00", "end_time": "23:59:59" },
+      { "dow": 5, "start_time": "08:00:00", "end_time": "23:59:59" },
+      { "dow": 6, "start_time": "08:00:00", "end_time": "23:59:59" }
+    ]
+  },
+
+  "constants": {
+    "DINNER_CODES": ["valentine","french","english","champagne_feast"],
+    "MENU_ITEM_CODES": ["champagne","wine","steak","baguette","coffee_pot","garlic_bread","sparkling_water","petit_dessert","espresso_shot"],
+    "SERVING_STYLE_CODES": ["simple","grand","deluxe"]
+  }
+}

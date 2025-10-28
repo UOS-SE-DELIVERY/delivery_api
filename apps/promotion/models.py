@@ -69,6 +69,79 @@ class Coupon(models.Model):
             return False
         return True
 
+    # ===== Behavior methods (refactor) =====
+    def activate(self) -> "Coupon":
+        self.active = True
+        self.save(update_fields=["active"])
+        return self
+
+    def deactivate(self) -> "Coupon":
+        self.active = False
+        self.save(update_fields=["active"])
+        return self
+
+    def _calc_amount(self, subtotal_cents: int) -> int:
+        try:
+            from decimal import Decimal, ROUND_HALF_UP
+            q = lambda x: int(Decimal(x).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+            amt = 0
+            if getattr(self, "kind", None) == "percent":
+                amt = q(Decimal(subtotal_cents) * (Decimal(getattr(self, "value", 0)) / Decimal(100)))
+            elif getattr(self, "kind", None) == "fixed":
+                amt = q(Decimal(getattr(self, "value", 0)))
+            max_c = getattr(self, "max_discount_cents", None)
+            if max_c is not None:
+                amt = min(amt, int(max_c))
+            return max(0, int(amt))
+        except Exception:
+            return 0
+
+    def can_redeem(self, *, customer_id: int | None, subtotal_cents: int, channel: str | None = None) -> tuple[bool, str | None]:
+        from django.utils import timezone as _tz
+        now = _tz.now()
+        if not getattr(self, "active", True):
+            return False, "inactive"
+        if getattr(self, "valid_from", None) and now < self.valid_from:
+            return False, "not_started"
+        if getattr(self, "valid_until", None) and now > self.valid_until:
+            return False, "expired"
+        ch = getattr(self, "channel", None)
+        if ch and ch != "ANY" and (channel or "ANY") != ch:
+            return False, "wrong_channel"
+        ms = getattr(self, "min_subtotal_cents", None)
+        if ms and subtotal_cents < int(ms):
+            return False, "min_subtotal"
+        try:
+            if getattr(self, "max_redemptions_global", None) is not None:
+                used = self.redemptions.count()
+                if used >= int(self.max_redemptions_global):
+                    return False, "exhausted"
+            if customer_id and getattr(self, "max_redemptions_per_user", None) is not None:
+                used = self.redemptions.filter(customer_id=customer_id).count()
+                if used >= int(self.max_redemptions_per_user):
+                    return False, "user_exhausted"
+        except Exception:
+            pass
+        return True, None
+
+    def redeem(self, *, order, customer_id: int | None, subtotal_cents: int, channel: str | None = None) -> int:
+        ok, reason = self.can_redeem(customer_id=customer_id, subtotal_cents=subtotal_cents, channel=channel)
+        if not ok:
+            raise Exception(f"coupon not applicable: {reason}")
+        amount = self._calc_amount(subtotal_cents)
+        try:
+            from django.db import transaction as _tx, models as _md
+            with _tx.atomic():
+                try:
+                    from django.apps import apps as _apps
+                    CR = _apps.get_model("promotion", "CouponRedemption")
+                    CR.objects.create(coupon=self, customer_id=customer_id, order=order, amount_cents=amount, channel=channel or "GUI")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return int(amount)
+
 
 class CouponRedemption(models.Model):
     coupon = models.ForeignKey(Coupon, on_delete=models.PROTECT, related_name="redemptions")

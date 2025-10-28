@@ -157,3 +157,16 @@ class StaffOrderDetailSerializer(serializers.ModelSerializer):
             "valid_from": getattr(m, "valid_from", None),
             "valid_until": getattr(m, "valid_until", None),
         }
+
+class InventoryItemUpdateSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    qty = serializers.IntegerField(min_value=0, required=False)
+    delta = serializers.IntegerField(required=False)
+    active = serializers.BooleanField(required=False)
+    reason = serializers.CharField(allow_blank=True, required=False)
+
+class InventoryItemPartialUpdateSerializer(serializers.Serializer):
+    qty = serializers.IntegerField(min_value=0, required=False)
+    delta = serializers.IntegerField(required=False)
+    active = serializers.BooleanField(required=False)
+    reason = serializers.CharField(allow_blank=True, required=False)

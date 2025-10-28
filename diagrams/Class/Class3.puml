@@ -1,0 +1,216 @@
+@startuml MrDinner_ClassDiagram_Simplified
+skinparam shadowing false
+skinparam class {
+  BackgroundColor white
+  BorderColor #444
+}
+left to right direction
+
+' ========== Accounts ==========
+package "apps.accounts.models" {
+  class Customer {
+    +customer_id
+    +username
+    +phone
+    +profile_consent
+  }
+}
+
+' ========== Catalog ==========
+package "apps.catalog.models" {
+  class MenuCategory {
+    +category_id
+    +name
+    +parent
+  }
+
+  class MenuItem {
+    +item_id
+    +code
+    +name
+    +base_price_cents
+  }
+
+  class ItemOptionGroup {
+    +group_id
+    +name
+    +min_select
+    +max_select
+    +is_required
+    +is_variant
+  }
+
+  class ItemOption {
+    +option_id
+    +name
+    +price_delta_cents
+    +multiplier
+    +is_default
+  }
+
+  class ItemAvailability {
+    +item
+    +dow
+    +start_date
+    +end_date
+    +start_time
+    +end_time
+  }
+
+  class ServingStyle {
+    +style_id
+    +code
+    +name
+    +price_mode
+    +price_value
+  }
+
+  class DinnerType {
+    +dinner_type_id
+    +code
+    +name
+    +base_price_cents
+    +active
+  }
+
+  class DinnerTypeDefaultItem {
+    +dinner_type
+    +item
+    +default_qty
+    +included_in_base
+  }
+
+  class DinnerStyleAllowed {
+    +dinner_type
+    +style
+  }
+
+  class ItemTag {
+    +tag_id
+    +name
+  }
+}
+
+' ========== Orders ==========
+package "apps.orders.models" {
+  class Order {
+    +id
+    +customer
+    +status
+    +subtotal_cents
+    +total_cents
+    +ordered_at
+  }
+
+  class OrderDinner {
+    +id
+    +order
+    +dinner_type
+    +style
+    +quantity
+    +base_price_cents
+  }
+
+  class OrderDinnerItem {
+    +id
+    +order_dinner
+    +item
+    +final_qty
+    +is_default
+    +unit_price_cents
+    +change_type
+  }
+
+  class OrderDinnerOption {
+    +id
+    +order_dinner
+    +option_group_name
+    +option_name
+    +multiplier
+    +price_delta_cents
+  }
+
+  class OrderItemOption {
+    +id
+    +order_dinner_item
+    +option_group_name
+    +option_name
+    +multiplier
+    +price_delta_cents
+  }
+
+  class OrderSource { +name }
+  class OrderStatus { +name }
+  class ChangeType  { +name }
+}
+
+' ========== Promotion ==========
+package "apps.promotion.models" {
+  class Coupon {
+    +code
+    +kind
+    +channel
+    +valid_from
+    +valid_until
+    +value
+    +active
+  }
+
+  class CouponRedemption {
+    +coupon
+    +customer
+    +order
+    +amount_cents
+    +channel
+    +redeemed_at
+  }
+
+  class Membership {
+    +customer
+    +percent_off
+    +valid_from
+    +valid_until
+    +active
+  }
+}
+
+' ========== Staff ==========
+package "apps.staff.models" {
+  class Staff {
+    +username
+    +role
+    +is_active
+  }
+  class StaffRole { +name }
+}
+
+' ========== Key Relationships (essential only) ==========
+' Catalog
+MenuCategory o-- MenuCategory : parent
+MenuCategory "1" o-- "0..*" MenuItem : category
+MenuItem *-- ItemOptionGroup : groups
+ItemOptionGroup *-- ItemOption : options
+MenuItem "1" o-- "0..*" ItemAvailability : availability
+DinnerType "1" o-- "0..*" DinnerTypeDefaultItem : default_items
+DinnerTypeDefaultItem *-- MenuItem : item
+DinnerType "1" o-- "0..*" DinnerStyleAllowed : allowed_styles
+DinnerStyleAllowed *-- ServingStyle : style
+MenuItem o-- ItemTag : tags
+
+' Orders
+Order *-- OrderDinner : dinners
+OrderDinner *-- OrderDinnerItem : items
+OrderDinner *-- OrderDinnerOption : options
+OrderDinnerItem *-- OrderItemOption : options
+Order --> Customer : customer
+Order ..> OrderStatus : status
+OrderDinnerItem ..> ChangeType : change_type
+Order ..> OrderSource : source
+
+' Promotion
+CouponRedemption --> Coupon : coupon
+CouponRedemption --> Customer : customer
+CouponRedemption --> Order : order
+Membership "1" -- "1" Customer : owner
+
+@enduml
