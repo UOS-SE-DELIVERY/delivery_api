@@ -1,24 +1,20 @@
 # apps/orders/views.py
 from __future__ import annotations
-from .serializers import OrderOutSerializer
-
-from .models import Order, OrderStatus
-
 
 from decimal import Decimal
-from typing import Dict, List
+from typing import List
 
 from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
-from rest_framework import generics, status
+from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Customer
 from apps.catalog.models import (
     MenuItem, DinnerType, ServingStyle,
-    DinnerTypeDefaultItem, DinnerOption
+    DinnerTypeDefaultItem
 )
 from apps.promotion.services import evaluate_discounts, redeem_discounts
 
@@ -28,13 +24,12 @@ from .models import (
 )
 from .serializers import (
     OrderCreateRequestSerializer, OrderOutSerializer,
-    # 프리뷰 IO
     PricePreviewRequestSerializer, PricePreviewResponseSerializer,
     LineItemOutSerializer, LineOptionOutSerializer,
     AdjustmentOutSerializer, DiscountLineOutSerializer,
 )
 from .services.pricing import (
-    as_cents_int, as_cents_dec,
+    as_cents_int,
     calc_item_unit_cents, apply_style_to_base,
     validate_style_allowed, validate_item_options_for_item, resolve_dinner_options_for_dinner,
 )
@@ -61,7 +56,7 @@ from rest_framework import serializers
             description='특정 고객의 주문만 조회'
         ),
     ],
-    responses=OrderOutSerializer,  # ListCreateAPIView → 스펙타큘러가 (paginated) list로 감쌉니다.
+    responses=OrderOutSerializer,
 )
 @extend_schema(
     methods=['POST'],
@@ -69,7 +64,13 @@ from rest_framework import serializers
     summary='주문 생성',
     description=(
         "디너(+스타일/옵션)와 개별 아이템 라인으로 주문을 생성합니다. "
-        "합계/할인은 promotion 서비스의 `evaluate_discounts` 결과를 반영하여 고정됩니다."
+        "할인은 promotion 서비스의 `evaluate_discounts` 결과를 반영합니다.\n\n"
+        "### 기본 아이템 삭제/감소\n"
+        "- `dinner.default_overrides`로 디너에 **포함된 기본 아이템의 수량을 0(삭제) 또는 감소**시킬 수 있습니다.\n"
+        "- included_in_base=True 기본 라인은 원래 0원이며, 삭제해도 **기본 디너 가격은 변하지 않습니다**.\n"
+        "- 기본 아이템 삭제/감소는 **개별 추가 아이템(`items`)과 독립적**입니다.\n\n"
+        "### 중복 아이템 병합\n"
+        "- 동일 아이템을 여러 번 담으면 한 라인으로 병합되어 수량만 증가합니다."
     ),
     request=OrderCreateRequestSerializer,
     responses={
@@ -77,8 +78,25 @@ from rest_framework import serializers
         400: OpenApiResponse(description='유효하지 않은 입력(예: dinner/style/item 코드 오류 등)'),
     },
     examples=[
+        # A) 미니멀(디너+스타일만, PICKUP)
         OpenApiExample(
-            name='요청 예시(배달)',
+            name='요청A_미니멀(디너+스타일만)',
+            value={
+                "customer_id": 6,
+                "order_source": "GUI",
+                "fulfillment_type": "PICKUP",
+                "dinner": {
+                    "code": "valentine",
+                    "quantity": "1",
+                    "style": "simple"
+                },
+                "items": []
+            },
+            request_only=True
+        ),
+        # B) 디너 옵션만 선택
+        OpenApiExample(
+            name='요청B_디너옵션만',
             value={
                 "customer_id": 6,
                 "order_source": "GUI",
@@ -89,14 +107,78 @@ from rest_framework import serializers
                     "style": "simple",
                     "dinner_options": [11, 12]
                 },
+                "receiver_name": "홍길동",
+                "receiver_phone": "010-1111-2222",
+                "delivery_address": "서울 중구 을지로 00"
+            },
+            request_only=True
+        ),
+        # C) 기본 포함 아이템 삭제/감소만 (예: 기본 와인 삭제)
+        OpenApiExample(
+            name='요청C_default_overrides만',
+            value={
+                "customer_id": 6,
+                "order_source": "GUI",
+                "fulfillment_type": "DELIVERY",
+                "dinner": {
+                    "code": "valentine",
+                    "quantity": "1",
+                    "style": "simple",
+                    "default_overrides": [
+                        {"code": "wine", "qty": "0"}
+                    ]
+                },
+                "receiver_name": "홍길동",
+                "receiver_phone": "010-1111-2222",
+                "delivery_address": "서울 중구 을지로 00"
+            },
+            request_only=True
+        ),
+        # D) 개별 아이템만(예: 스테이크 2, 와인 3 추가)
+        OpenApiExample(
+            name='요청D_items만',
+            value={
+                "customer_id": 6,
+                "order_source": "GUI",
+                "fulfillment_type": "DELIVERY",
+                "dinner": {
+                    "code": "valentine",
+                    "quantity": "1",
+                    "style": "simple"
+                },
                 "items": [
-                    {"code": "KIMCHI", "qty": "2", "options": [101]}
+                    {"code": "steak", "qty": "2"},
+                    {"code": "wine",  "qty": "3"}
+                ],
+                "receiver_name": "홍길동",
+                "receiver_phone": "010-1111-2222",
+                "delivery_address": "서울 중구 을지로 00"
+            },
+            request_only=True
+        ),
+        # E) 기본삭제 + 개별아이템(가장 흔한 와인 케이스)
+        OpenApiExample(
+            name='요청E_default_overrides+items',
+            value={
+                "customer_id": 6,
+                "order_source": "GUI",
+                "fulfillment_type": "DELIVERY",
+                "dinner": {
+                    "code": "valentine",
+                    "quantity": "1",
+                    "style": "simple",
+                    "default_overrides": [
+                        {"code": "wine", "qty": "0"}
+                    ]
+                },
+                "items": [
+                    {"code": "steak", "qty": "2"},
+                    {"code": "wine",  "qty": "3"}
                 ],
                 "receiver_name": "홍길동",
                 "receiver_phone": "010-1111-2222",
                 "delivery_address": "서울 중구 을지로 00",
-                "geo_lat": 37.566,
-                "geo_lng": 126.978,
+                "geo_lat": 37.566, "geo_lng": 126.978,
                 "place_label": "집",
                 "address_meta": {"note": "경비실 맡김"},
                 "payment_token": "tok_123",
@@ -106,8 +188,9 @@ from rest_framework import serializers
             },
             request_only=True
         ),
+        # 응답 요약 예시
         OpenApiExample(
-            name='응답 예시(요약)',
+            name='응답_요약',
             value={
                 "id": 123,
                 "customer_id": 6,
@@ -123,38 +206,50 @@ from rest_framework import serializers
                 "address_meta": {"note":"경비실 맡김"},
                 "payment_token": "tok_123",
                 "card_last4": "4242",
-                "subtotal_cents": 21000,
-                "discount_cents": 1000,
-                "total_cents": 20000,
+                "subtotal_cents": 210000,
+                "discount_cents": 10000,
+                "total_cents": 200000,
                 "meta": {
                     "note": "문 앞에 놓아주세요",
                     "discounts": [
-                        {"type":"coupon","label":"WELCOME10","code":"WELCOME10","amount_cents":1000}
+                        {"type":"coupon","label":"WELCOME10","code":"WELCOME10","amount_cents":10000}
                     ]
                 },
                 "dinners": [
                     {
                         "id": 555,
-                        "dinner_code": "valentine", "dinner_name": "Valentine",
+                        "dinner_code": "valentine", "dinner_name": "Valentine Dinner",
                         "style_code": "simple", "style_name": "Simple",
                         "person_label": None, "quantity": "1.00",
-                        "base_price_cents": 45000, "style_adjust_cents": 0,
+                        "base_price_cents": 150000, "style_adjust_cents": 0,
                         "notes": None,
                         "items": [
                             {
                                 "id": 9001,
-                                "item_code": "KIMCHI", "item_name": "김치",
+                                "item_code": "wine", "item_name": "Wine (Bottle)",
+                                "final_qty": "0.00",
+                                "unit_price_cents": 0,
+                                "is_default": True, "change_type": "removed",
+                                "options": []
+                            },
+                            {
+                                "id": 9002,
+                                "item_code": "steak", "item_name": "Steak",
                                 "final_qty": "2.00",
-                                "unit_price_cents": 3000,
+                                "unit_price_cents": 30000,
                                 "is_default": False, "change_type": "added",
-                                "options": [
-                                    {"id": 1, "option_group_name":"추가","option_name":"곱빼기","price_delta_cents":0,"multiplier":"1.000"}
-                                ]
+                                "options": []
+                            },
+                            {
+                                "id": 9003,
+                                "item_code": "wine", "item_name": "Wine (Bottle)",
+                                "final_qty": "3.00",
+                                "unit_price_cents": 50000,
+                                "is_default": False, "change_type": "added",
+                                "options": []
                             }
                         ],
-                        "options": [
-                            {"id": 1, "option_group_name":"Rice","option_name":"잡곡","price_delta_cents":0,"multiplier":None}
-                        ]
+                        "options": []
                     }
                 ]
             },
@@ -190,7 +285,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
         if not customer:
             return Response({"detail": "Invalid customer_id"}, status=400)
 
-        # 헤더 생성(옵션 필드 일괄 매핑)
+        # 헤더 생성
         optional_fields = [
             "receiver_name","receiver_phone","delivery_address",
             "geo_lat","geo_lng","place_label","address_meta",
@@ -222,6 +317,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
 
+        # base + style (style_adjust_cents는 addon 취급)
         unit_cents, style_adjust_cents = apply_style_to_base(dinner, style)
         qty = Decimal(dsel.get("quantity") or "1")
 
@@ -230,12 +326,16 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
 
+        # 디너 옵션: multiplier도 addon으로 환산(delta = unit * (m-1))
+        opt_deltas: List[int] = []
         for dop in dinner_opts:
-            if (dop.group.price_mode or "addon") == "addon":
-                unit_cents += int(dop.price_delta_cents or 0)
+            if (getattr(dop.group, "price_mode", None) or "addon") == "addon":
+                delta = int(getattr(dop, "price_delta_cents", 0) or 0)
             else:
-                m = Decimal(dop.multiplier or "1")
-                unit_cents = as_cents_int(Decimal(unit_cents) * m)
+                m = Decimal(getattr(dop, "multiplier", None) or "1")
+                delta = as_cents_int(Decimal(unit_cents) * (m - Decimal("1")))
+            unit_cents += delta
+            opt_deltas.append(delta)
 
         dinner_subtotal = as_cents_int(Decimal(unit_cents) * qty)
         subtotal += dinner_subtotal
@@ -247,40 +347,53 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
             style_adjust_cents=style_adjust_cents, notes=None
         )
 
-        # 디너 옵션 스냅샷
-        for dop in dinner_opts:
-            if (dop.group.price_mode or "addon") == "addon":
-                OrderDinnerOption.objects.create(
-                    order_dinner=od,
-                    option_group_name=dop.group.name,
-                    option_name=(dop.item.name if dop.item_id else dop.name),
-                    price_delta_cents=int(dop.price_delta_cents or 0),
-                    multiplier=None
-                )
-            else:
-                OrderDinnerOption.objects.create(
-                    order_dinner=od,
-                    option_group_name=dop.group.name,
-                    option_name=(dop.item.name if dop.item_id else dop.name),
-                    price_delta_cents=0,
-                    multiplier=Decimal(dop.multiplier or "1")
-                )
+        # 디너 옵션 스냅샷(multiplier=None로 고정)
+        for dop, delta in zip(dinner_opts, opt_deltas):
+            OrderDinnerOption.objects.create(
+                order_dinner=od,
+                option_group_name=dop.group.name,
+                option_name=(dop.item.name if getattr(dop, "item_id", None) else dop.name),
+                price_delta_cents=int(delta),
+                multiplier=None
+            )
 
         # 디너 기본 아이템 스냅샷
         defaults = (DinnerTypeDefaultItem.objects
                     .filter(dinner_type=dinner)
                     .select_related("item")
                     .order_by("item__name"))
+        created_default_map = {}  # code -> (odi, default_qty)
         for di in defaults:
             unit = 0 if getattr(di, "included_in_base", False) else di.item.base_price_cents
-            OrderDinnerItem.objects.create(
+            odi = OrderDinnerItem.objects.create(
                 order_dinner=od, item=di.item,
                 final_qty=di.default_qty,
                 unit_price_cents=unit,
                 is_default=True, change_type="unchanged"
             )
+            created_default_map[di.item.code] = (odi, Decimal(di.default_qty))
 
-        # ---- 개별 아이템 ----
+        # ---- 기본 아이템 삭제/감소 반영 (dinner.default_overrides)
+        for ov in (dsel.get("default_overrides") or []):
+            code = str(ov["code"]).strip()
+            qty_override = Decimal(str(ov["qty"]))
+            if code not in created_default_map:
+                return Response({"detail": f"Invalid default_overrides.code: {code}"}, status=400)
+            odi, orig = created_default_map[code]
+            if qty_override < 0 or qty_override > orig:
+                return Response({"detail": f"default_overrides.qty must be between 0 and {orig} for code={code}"},
+                                status=400)
+            # 적용
+            odi.final_qty = qty_override
+            if qty_override == 0:
+                odi.change_type = "removed"
+            elif qty_override < orig:
+                odi.change_type = "decreased"
+            else:
+                odi.change_type = "unchanged"
+            odi.save(update_fields=["final_qty", "change_type"])
+
+        # ---- 개별 아이템 (중복 병합)
         for it in data.get("items", []):
             item = MenuItem.objects.filter(code=it["code"], active=True).first()
             if not item:
@@ -296,29 +409,38 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
             line_sub = as_cents_int(Decimal(unit_item_cents) * qty_item)
             subtotal += line_sub
 
-            odi = OrderDinnerItem.objects.create(
+            odi, created = OrderDinnerItem.objects.get_or_create(
                 order_dinner=od, item=item,
-                final_qty=qty_item,
-                unit_price_cents=unit_item_cents,
-                is_default=False, change_type="added"
+                defaults={
+                    "final_qty": qty_item,
+                    "unit_price_cents": unit_item_cents,
+                    "is_default": False, "change_type": "added"
+                }
             )
+            if not created:
+                odi.final_qty = Decimal(odi.final_qty) + qty_item
+                if odi.is_default and odi.change_type == "unchanged":
+                    odi.change_type = "added"
+                odi.save(update_fields=["final_qty", "change_type"])
+
+            # 옵션 스냅샷(multiplier=None로 고정)
             for sopt in snaps:
                 OrderItemOption.objects.create(
                     order_dinner_item=odi,
                     option_group_name=sopt["option_group_name"],
                     option_name=sopt["option_name"],
                     price_delta_cents=sopt["price_delta_cents"],
-                    multiplier=sopt["multiplier"]
+                    multiplier=None
                 )
 
-        # ---- 프로모션 평가지원 (promotion 서비스 호출) ----
+        # ---- 프로모션 평가
         coupon_codes = [c["code"] for c in data.get("coupons", [])]
         discounts, total_disc, total_after = evaluate_discounts(
             subtotal_cents=subtotal,
             customer_id=data["customer_id"],
             channel=data.get("order_source") or "GUI",
             dinner_code=dinner.code,
-            item_lines=[],  # 필요 시 라인 전달 가능
+            item_lines=[],  # 필요시 라인 전달
             style_code=style.code,
             dinner_option_ids=[dop.pk for dop in dinner_opts],
             coupon_codes=coupon_codes,
@@ -340,7 +462,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
             order=order,
             customer_id=data["customer_id"],
             channel=data.get("order_source") or "GUI",
-            discounts=discounts,  # code/amount_cents 포함된 라인 배열을 넘김
+            discounts=discounts,
         )
 
         return Response(OrderOutSerializer(order).data, status=201)
@@ -370,44 +492,89 @@ class OrderDetailAPIView(generics.RetrieveAPIView):
     summary='가격 프리뷰',
     description=(
         "디너/스타일/옵션·개별 아이템을 기준으로 **예상 금액**을 계산합니다. "
-        "스타일/디너 옵션의 가산/배수 규칙을 적용하고, 할인은 `evaluate_discounts` 결과를 반영합니다. "
-        "실제 주문을 생성하지 않으며, 금액은 시점/규칙에 따라 달라질 수 있습니다."
+        "스타일/디너 옵션의 멀티플라이어가 있어도 모두 **addon(가산)**으로 환산합니다. "
+        "`dinner.default_overrides`로 기본 아이템 삭제/감소를 표시할 수 있습니다 "
+        "(포함 라인은 원가 0원이므로 보통 총액에는 영향이 없습니다)."
     ),
     request=PricePreviewRequestSerializer,
     responses=PricePreviewResponseSerializer,
     examples=[
+        # 1) 미니멀
         OpenApiExample(
-            name='요청 예시',
+            name='프리뷰1_미니멀',
             value={
-                "customer_id": 6,
                 "order_source": "GUI",
-                "dinner": {"code": "valentine", "quantity": "1", "style": "simple", "dinner_options": [11]},
-                "items": [{"code": "KIMCHI", "qty": "2", "options": [101]}],
+                "dinner": {"code": "valentine", "quantity": "1", "style": "simple"}
+            },
+            request_only=True
+        ),
+        # 2) 디너 옵션만
+        OpenApiExample(
+            name='프리뷰2_디너옵션만',
+            value={
+                "order_source": "GUI",
+                "dinner": {"code": "valentine", "quantity": "1", "style": "simple", "dinner_options": [11, 12]}
+            },
+            request_only=True
+        ),
+        # 3) default_overrides만
+        OpenApiExample(
+            name='프리뷰3_default_overrides만',
+            value={
+                "order_source": "GUI",
+                "dinner": {"code": "valentine", "quantity": "1", "style": "simple",
+                           "default_overrides": [{"code": "wine", "qty": "0"}]}
+            },
+            request_only=True
+        ),
+        # 4) items만
+        OpenApiExample(
+            name='프리뷰4_items만',
+            value={
+                "order_source": "GUI",
+                "dinner": {"code": "valentine", "quantity": "1", "style": "simple"},
+                "items": [{"code": "steak", "qty": "2"}, {"code": "wine", "qty": "3"}]
+            },
+            request_only=True
+        ),
+        # 5) default_overrides + items
+        OpenApiExample(
+            name='프리뷰5_default_overrides+items',
+            value={
+                "order_source": "GUI",
+                "dinner": {"code": "valentine", "quantity": "1", "style": "simple",
+                           "default_overrides": [{"code": "wine", "qty": "0"}]},
+                "items": [{"code": "steak", "qty": "2"}, {"code": "wine", "qty": "3"}],
                 "coupons": [{"code": "WELCOME10"}]
             },
             request_only=True
         ),
+        # 응답 예시
         OpenApiExample(
-            name='응답 예시',
+            name='프리뷰_응답예시',
             value={
                 "line_items": [
                     {
-                        "item_code": "KIMCHI", "name": "김치",
-                        "qty": "2.00", "unit_price_cents": 3000,
-                        "options": [{"option_group_name": "추가", "option_name": "곱빼기", "price_delta_cents": 0, "multiplier": "1.000"}],
-                        "subtotal_cents": 6000
+                        "item_code": "steak", "name": "Steak",
+                        "qty": "2.00", "unit_price_cents": 30000,
+                        "options": [], "subtotal_cents": 60000
+                    },
+                    {
+                        "item_code": "wine", "name": "Wine (Bottle)",
+                        "qty": "3.00", "unit_price_cents": 50000,
+                        "options": [], "subtotal_cents": 150000
                     }
                 ],
                 "adjustments": [
-                    {"type": "style", "label": "Simple", "mode": "addon", "value_cents": 0, "multiplier": None},
-                    {"type": "dinner_option", "label": "잡곡", "mode": "addon", "value_cents": 0, "multiplier": None}
+                    {"type": "style", "label": "Simple", "mode": "addon", "value_cents": 0},
+                    {"type": "default_override", "label": "Wine (Bottle)", "mode": "remove", "value_cents": 0}
                 ],
-                "subtotal_cents": 21000,
+                "subtotal_cents": 210000,
                 "discounts": [
-                    {"type":"coupon","label":"WELCOME10","code":"WELCOME10","amount_cents":1000}
+                    {"type":"coupon","label":"WELCOME10","code":"WELCOME10","amount_cents":10000}
                 ],
-                "discount_cents": 1000,
-                "total_cents": 20000
+                "discount_cents": 10000,
+                "total_cents": 200000
             },
             response_only=True
         )
@@ -416,9 +583,9 @@ class OrderDetailAPIView(generics.RetrieveAPIView):
 class OrderPricePreviewAPIView(APIView):
     """
     POST /api/orders/price/preview
-    - 디너 base 포함, multiplier는 디너 가격에만
-    - 스타일/옵션 소속 검증
-    - HALF_UP 반올림
+    - base + style_adjust_cents(addon) + (옵션 델타들의 합) + Σ(아이템 단가×수량)
+    - 모든 multiplier는 delta = unit * (m-1)로 환산하여 addon 취급
+    - dinner.default_overrides로 기본 아이템 삭제/감소를 표시(총액 영향은 보통 없음)
     - 할인은 promotion.evaluate_discounts 위임
     """
     def post(self, request):
@@ -441,7 +608,8 @@ class OrderPricePreviewAPIView(APIView):
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
 
-        unit_cents, _style_adj = apply_style_to_base(dinner, style)
+        # base + style (style_adj는 addon)
+        unit_cents, style_adj = apply_style_to_base(dinner, style)
         qty = Decimal(dsel.get("quantity") or "1")
 
         try:
@@ -450,37 +618,45 @@ class OrderPricePreviewAPIView(APIView):
             return Response({"detail": str(e)}, status=400)
 
         adjustments = []
-        # 스타일 라인(표시용)
-        if (style.price_mode or "addon") == "addon":
-            adjustments.append(AdjustmentOutSerializer({
-                "type": "style", "label": style.name,
-                "mode": "addon", "value_cents": int(style.price_value or 0), "multiplier": None,
-            }).data)
-        else:
-            m = Decimal(style.price_value or "1.0")
-            adjustments.append(AdjustmentOutSerializer({
-                "type": "style", "label": style.name,
-                "mode": "multiplier", "value_cents": None, "multiplier": m,
-            }).data)
-            unit_cents = as_cents_int(Decimal(unit_cents))  # 이미 apply_style_to_base에서 반영됨
+        # 스타일
+        adjustments.append(AdjustmentOutSerializer({
+            "type": "style", "label": style.name,
+            "mode": "addon", "value_cents": int(style_adj or 0),
+        }).data)
 
-        # 디너 옵션은 디너 가격에만 반영
+        # 디너 옵션
         for dop in dinner_opts:
-            if (dop.group.price_mode or "addon") == "addon":
-                delta = int(dop.price_delta_cents or 0)
-                unit_cents += delta
-                adjustments.append(AdjustmentOutSerializer({
-                    "type": "dinner_option",
-                    "label": dop.name or (dop.item.name if dop.item_id else "Option"),
-                    "mode": "addon", "value_cents": delta, "multiplier": None,
-                }).data)
+            if (getattr(dop.group, "price_mode", None) or "addon") == "addon":
+                delta = int(getattr(dop, "price_delta_cents", 0) or 0)
             else:
-                m = Decimal(dop.multiplier or "1.0")
-                unit_cents = as_cents_int(Decimal(unit_cents) * m)
+                m = Decimal(getattr(dop, "multiplier", None) or "1.0")
+                delta = as_cents_int(Decimal(unit_cents) * (m - Decimal("1.0")))
+            unit_cents += delta
+            adjustments.append(AdjustmentOutSerializer({
+                "type": "dinner_option",
+                "label": dop.name or (dop.item.name if getattr(dop, "item_id", None) else "Option"),
+                "mode": "addon", "value_cents": int(delta),
+            }).data)
+
+        # 기본 아이템 삭제/감소(표시용)
+        default_map = {di.item.code: di for di in DinnerTypeDefaultItem.objects.filter(dinner_type=dinner)
+                       .select_related("item")}
+        for ov in (dsel.get("default_overrides") or []):
+            code = str(ov["code"]).strip()
+            if code not in default_map:
+                return Response({"detail": f"Invalid default_overrides.code: {code}"}, status=400)
+            orig = Decimal(str(default_map[code].default_qty))
+            newq = Decimal(str(ov["qty"]))
+            if newq < 0 or newq > orig:
+                return Response({"detail": f"default_overrides.qty must be between 0 and {orig} for code={code}"},
+                                status=400)
+            mode = "remove" if newq == 0 else ("decrease" if newq < orig else "noop")
+            if mode != "noop":
                 adjustments.append(AdjustmentOutSerializer({
-                    "type": "dinner_option",
-                    "label": dop.name or (dop.item.name if dop.item_id else "Option"),
-                    "mode": "multiplier", "value_cents": None, "multiplier": m,
+                    "type": "default_override",
+                    "label": default_map[code].item.name,
+                    "mode": mode,
+                    "value_cents": 0,
                 }).data)
 
         dinner_subtotal = as_cents_int(Decimal(unit_cents) * qty)
@@ -499,6 +675,8 @@ class OrderPricePreviewAPIView(APIView):
                 return Response({"detail": str(e)}, status=400)
 
             unit_item_cents, snaps = calc_item_unit_cents(item, sel_opts)
+            snaps_norm = [{**snap} for snap in snaps]
+
             qty_item = Decimal(it["qty"])
             line_sub = as_cents_int(Decimal(unit_item_cents) * qty_item)
             items_total += line_sub
@@ -508,13 +686,13 @@ class OrderPricePreviewAPIView(APIView):
                 "name": item.name,
                 "qty": qty_item,
                 "unit_price_cents": unit_item_cents,
-                "options": [LineOptionOutSerializer(snap).data for snap in snaps],
+                "options": [LineOptionOutSerializer(snap).data for snap in snaps_norm],
                 "subtotal_cents": line_sub,
             }).data)
 
         subtotal = dinner_subtotal + items_total
 
-        # 할인 위임
+        # 할인
         coupon_codes = [c["code"] for c in data.get("coupons", [])]
         discounts, total_disc, total_after = evaluate_discounts(
             subtotal_cents=subtotal,
@@ -570,21 +748,9 @@ class OrderPricePreviewAPIView(APIView):
         409: OpenApiResponse(description='도메인 규칙 위반(상태 전이 불가 등)'),
     },
     examples=[
-        OpenApiExample(
-            name='accept',
-            value={"action": "accept"},
-            request_only=True
-        ),
-        OpenApiExample(
-            name='out-for-delivery',
-            value={"action": "out-for-delivery"},
-            request_only=True
-        ),
-        OpenApiExample(
-            name='cancel(사유 포함)',
-            value={"action": "cancel", "reason": "고객 요청 취소"},
-            request_only=True
-        )
+        OpenApiExample(name='accept', value={"action": "accept"}, request_only=True),
+        OpenApiExample(name='out-for-delivery', value={"action": "out-for-delivery"}, request_only=True),
+        OpenApiExample(name='cancel', value={"action": "cancel", "reason": "고객 요청 취소"}, request_only=True),
     ]
 )
 class OrderActionAPIView(APIView):

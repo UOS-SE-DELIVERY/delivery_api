@@ -5,7 +5,6 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
 from .models import Customer
 
-# 쿠키 이름(로그인/로그아웃 뷰와 반드시 동일)
 COOKIE_NAME = getattr(settings, "JWT_COOKIE_NAME", "access")
 
 def _jwt_secret() -> str:
@@ -15,7 +14,6 @@ def _jwt_alg() -> str:
     return getattr(settings, "JWT_ALG", "HS256")
 
 def _jwt_expires_min() -> int:
-    # 기본 7일 = 10080분 (로그인 쿠키 max_age와 일치시키는 걸 권장)
     return int(getattr(settings, "JWT_EXPIRES_MIN", 60 * 24 * 7))
 
 def createAccessToken(user: Customer) -> str:

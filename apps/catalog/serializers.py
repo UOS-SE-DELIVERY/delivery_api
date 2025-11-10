@@ -144,6 +144,7 @@ class DinnerFullSerializer(serializers.Serializer):
     option_groups = DinnerOptionGroupSerializer(many=True)
 
 # ---- Add-ons 카드/리스트 (미니멀) ----
+# 주의: AddonsListPageAPIView는 이미 dict로 직렬화하여 반환하므로 스키마 문서화 용도로만 사용
 
 class AddonCardItemSerializer(serializers.ModelSerializer):
     tags = ItemTagSerializer(many=True, read_only=True)

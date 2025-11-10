@@ -1,3 +1,4 @@
+# apps/orders/serializers.py
 from __future__ import annotations
 from decimal import Decimal
 from rest_framework import serializers
@@ -11,12 +12,14 @@ from .models import (
 class OrderItemOptionOutSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItemOption
-        fields = ("id", "option_group_name", "option_name", "price_delta_cents", "multiplier")
+        fields = ("id", "option_group_name", "option_name", "price_delta_cents")
+
 
 class OrderDinnerOptionOutSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderDinnerOption
-        fields = ("id", "option_group_name", "option_name", "price_delta_cents", "multiplier")
+        fields = ("id", "option_group_name", "option_name", "price_delta_cents")
+
 
 class OrderDinnerItemOutSerializer(serializers.ModelSerializer):
     item_code = serializers.CharField(source="item.code", read_only=True)
@@ -31,6 +34,7 @@ class OrderDinnerItemOutSerializer(serializers.ModelSerializer):
             "is_default", "change_type",
             "options",
         )
+
 
 class OrderDinnerOutSerializer(serializers.ModelSerializer):
     dinner_code = serializers.CharField(source="dinner_type.code", read_only=True)
@@ -52,6 +56,7 @@ class OrderDinnerOutSerializer(serializers.ModelSerializer):
             "items", "options",
         )
 
+
 class OrderOutSerializer(serializers.ModelSerializer):
     dinners = OrderDinnerOutSerializer(many=True, read_only=True)
 
@@ -67,22 +72,36 @@ class OrderOutSerializer(serializers.ModelSerializer):
             "dinners",
         )
 
+
 # ---------- 생성/프리뷰 입력 DTO ----------
 class OrderItemSelectionSerializer(serializers.Serializer):
     code = serializers.CharField()
     qty = serializers.DecimalField(max_digits=10, decimal_places=2)
-    options = serializers.ListField(child=serializers.IntegerField(min_value=1),
-                                    required=False, allow_empty=True, default=list)
+    options = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False, allow_empty=True, default=list
+    )
+
+
+class DefaultOverrideInSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    qty = serializers.DecimalField(max_digits=10, decimal_places=2)
+
 
 class OrderDinnerSelectionSerializer(serializers.Serializer):
     code = serializers.CharField()
     quantity = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default="1")
     style = serializers.CharField()
-    dinner_options = serializers.ListField(child=serializers.IntegerField(min_value=1),
-                                           required=False, allow_empty=True, default=list)
+    dinner_options = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False, allow_empty=True, default=list
+    )
+    default_overrides = DefaultOverrideInSerializer(many=True, required=False, default=list)
+
 
 class CouponCodeSerializer(serializers.Serializer):
     code = serializers.CharField()
+
 
 class OrderCreateRequestSerializer(serializers.Serializer):
     customer_id = serializers.IntegerField()
@@ -114,6 +133,7 @@ class OrderCreateRequestSerializer(serializers.Serializer):
                     raise serializers.ValidationError({f: "required for DELIVERY"})
         return attrs
 
+
 class PricePreviewRequestSerializer(serializers.Serializer):
     customer_id = serializers.IntegerField(required=False)
     order_source = serializers.ChoiceField(choices=["GUI", "VOICE"], required=False, default="GUI")
@@ -122,12 +142,13 @@ class PricePreviewRequestSerializer(serializers.Serializer):
     items = serializers.ListField(child=OrderItemSelectionSerializer(), required=False, default=list)
     coupons = CouponCodeSerializer(many=True, required=False, default=list)
 
+
 # ---------- 프리뷰 출력 ----------
 class LineOptionOutSerializer(serializers.Serializer):
     option_group_name = serializers.CharField()
     option_name = serializers.CharField()
     price_delta_cents = serializers.IntegerField()
-    multiplier = serializers.DecimalField(max_digits=7, decimal_places=3, allow_null=True)
+
 
 class LineItemOutSerializer(serializers.Serializer):
     item_code = serializers.CharField()
@@ -137,18 +158,20 @@ class LineItemOutSerializer(serializers.Serializer):
     options = LineOptionOutSerializer(many=True)
     subtotal_cents = serializers.IntegerField()
 
+
 class AdjustmentOutSerializer(serializers.Serializer):
-    type = serializers.ChoiceField(choices=["style", "dinner_option"])
+    type = serializers.ChoiceField(choices=["style", "dinner_option", "default_override"])
     label = serializers.CharField()
-    mode = serializers.ChoiceField(choices=["addon", "multiplier"])
+    mode = serializers.ChoiceField(choices=["addon", "remove", "decrease"])
     value_cents = serializers.IntegerField(allow_null=True, required=False)
-    multiplier = serializers.DecimalField(max_digits=10, decimal_places=3, required=False, allow_null=True)
+
 
 class DiscountLineOutSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=["membership", "coupon"])
     label = serializers.CharField()
     code = serializers.CharField(required=False, allow_null=True)
     amount_cents = serializers.IntegerField()
+
 
 class PricePreviewResponseSerializer(serializers.Serializer):
     line_items = LineItemOutSerializer(many=True)
