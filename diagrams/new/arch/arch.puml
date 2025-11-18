@@ -1,0 +1,40 @@
+@startuml MrDinner_Architecture
+title Mr. Dinner - Architecture Diagram
+
+skinparam shadowing false
+skinparam roundcorner 8
+left to right direction
+
+package "Web Client" as WebClient
+
+package "Accounts Service" as Accounts
+package "Catalog Service" as Catalog
+package "Orders Service" as Orders
+package "Staff Service" as Staff
+package "Promotion Service" as Promotion
+package "Voice Recognition Service" as VoiceSvc
+package "PostgreSQL DB" as DB
+
+WebClient ..> Accounts
+WebClient ..> Catalog
+WebClient ..> Orders
+WebClient ..> Staff
+WebClient ..> VoiceSvc
+
+Orders ..> Accounts
+Orders ..> Catalog
+Orders ..> Promotion
+
+VoiceSvc ..> Orders
+
+Staff ..> Orders
+Staff ..> Catalog
+Staff ..> Promotion
+
+Accounts ..> DB
+Catalog  ..> DB
+Orders   ..> DB
+Staff    ..> DB
+Promotion ..> DB
+
+@enduml

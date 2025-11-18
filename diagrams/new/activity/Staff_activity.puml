@@ -1,0 +1,40 @@
+@startuml MrDinner_Staff_Activity
+title Staff Activity Diagram
+
+start
+
+:Open staff console;
+:Log in as staff;
+:Start shift;
+
+while (Shift is active?) is (yes)
+  if (New or updated orders to handle?) then (yes)
+    :View order list;
+    :Select order to work on;
+    :Update order status\n(accept, preparing, out for delivery, delivered, cancel);
+  else (no)
+    :Skip order handling;
+  endif
+
+  if (Needs inventory adjustment?) then (yes)
+    :Open inventory screen;
+    :Review item stock levels;
+    :Adjust stock or status\n(single, bulk, or file upload);
+  else (no)
+    :Skip inventory adjustment;
+  endif
+
+  if (Needs promotion management?) then (yes)
+    :Open promotions screen;
+    :Create or update coupons;
+    :Adjust membership benefits;
+  else (no)
+    :Skip promotion management;
+  endif
+endwhile (no)
+
+:Stop shift;
+:Log out;
+
+end
+@enduml

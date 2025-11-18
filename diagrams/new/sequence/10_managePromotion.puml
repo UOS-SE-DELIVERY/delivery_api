@@ -1,0 +1,35 @@
+@startuml UC_ManagePromotions_Sequence
+title Manage Promotions
+
+actor "Owner / Manager" as ManagerUser
+
+participant "Web Client" as WebClient
+participant "Promotion Management Service" as PromoService
+
+ManagerUser -> WebClient: open promotions dashboard
+WebClient -> PromoService: request coupons and memberships
+PromoService --> WebClient: coupon list and membership list
+WebClient --> ManagerUser: show promotions dashboard
+
+ManagerUser -> WebClient: open coupon form
+ManagerUser -> WebClient: enter coupon conditions and discount policy
+WebClient -> PromoService: send coupon data
+PromoService --> WebClient: confirm coupon saved
+WebClient --> ManagerUser: refresh coupon list
+
+ManagerUser -> WebClient: change coupon status (activate or deactivate)
+WebClient -> PromoService: send coupon status update
+PromoService --> WebClient: updated coupon information
+WebClient --> ManagerUser: update coupon row
+
+ManagerUser -> WebClient: open membership settings
+WebClient -> PromoService: request membership rules
+PromoService --> WebClient: membership list
+WebClient --> ManagerUser: show membership settings
+
+ManagerUser -> WebClient: modify membership rules
+WebClient -> PromoService: send updated membership rules
+PromoService --> WebClient: confirm membership rules saved
+WebClient --> ManagerUser: show updated membership settings
+
+@enduml

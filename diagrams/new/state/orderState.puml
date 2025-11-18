@@ -1,0 +1,39 @@
+@startuml Order_State_Clean
+title Order State Diagram (Order.status)
+
+skinparam shadowing false
+skinparam state { 
+    BackgroundColor white
+    BorderColor #444 
+    RoundCorner 8
+}
+
+state Order {
+  [*] --> Pending
+  Delivered --> [*]
+  Canceled  --> [*]
+
+  state Pending
+  state Preparing
+  state OutForDelivery
+  state Delivered
+  state Canceled
+
+  ' main transitions (domain methods)
+  Pending        --> Preparing       : accept()
+  Preparing      --> OutForDelivery  : out_for_delivery()
+  OutForDelivery --> Delivered       : deliver()
+
+  Pending        --> Canceled        : cancel()
+  Preparing      --> Canceled        : cancel()
+  OutForDelivery --> Canceled        : cancel()
+}
+
+' mark_ready()는 상태 변화 없음(Preparing 내부 동작)
+note right of Order.Preparing
+  mark_ready()
+  - no state change
+  - set "ready" flag only
+end note
+
+@enduml

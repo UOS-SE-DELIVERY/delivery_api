@@ -1,0 +1,57 @@
+@startuml UC_PlaceOrder_Detail
+title UC_PlaceOrder (Price Preview + Create Order)
+
+actor "Customer" as Customer
+actor "Voice Recognition Service" as VoiceService
+participant "Web Client" as WebClient
+participant "Orders API" as OrdersAPI
+database "DB" as DB
+
+' =======================
+' (Optional) Voice order 수정해야함.
+' =======================
+group Voice-based order input (optional 수정 필요)
+  Customer -> WebClient: Press "Voice Order" and speak
+  WebClient -> VoiceService: Send audio stream
+  VoiceService --> WebClient: Recognized text\n("2 steak dinner, 1 wine ...")
+
+  WebClient -> WebClient: Parse recognized text\ninto cart items
+end
+
+' =======================
+' Price preview
+' =======================
+group Price preview
+  Customer -> WebClient: Review cart and click "Preview Price"
+  WebClient -> OrdersAPI: POST /api/orders/price/preview\n{ items[], dinner, coupons?, order_source }
+
+  OrdersAPI -> DB: SELECT prices for items\nWHERE code IN items[]
+  DB --> OrdersAPI: item rows
+
+  OrdersAPI -> DB: SELECT active coupons / membership\nFOR customer_id (if any)
+  DB --> OrdersAPI: coupon / membership rows
+
+  OrdersAPI -> OrdersAPI: calculate subtotal, discounts, total
+  OrdersAPI --> WebClient: 200 OK\n{ subtotal_cents, discount_cents, total_cents, adjustments[] }
+
+  WebClient --> Customer: Show price breakdown
+end
+
+' =======================
+' Create order
+' =======================
+group Create order
+  Customer -> WebClient: Click "Place Order"
+  WebClient -> OrdersAPI: POST /api/orders\n{ customer_id, items[], dinner, delivery_address,\n  geo_lat, geo_lng, payment_token, coupons?, ... }
+
+  OrdersAPI -> DB: INSERT INTO orders_order\n(customer_id, status='pending', subtotal_cents,\n discount_cents, total_cents, address_meta, ...)
+  DB --> OrdersAPI: new order id
+
+  OrdersAPI -> DB: INSERT INTO orders_orderdinner / orders_orderdinneritem\nfor each dinner & line item
+  DB --> OrdersAPI: created dinner & item rows
+
+  OrdersAPI --> WebClient: 201 Created\n{ order_id, status='pending', totals, ... }
+  WebClient --> Customer: Show order confirmation
+end
+
+@enduml

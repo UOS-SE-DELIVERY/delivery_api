@@ -62,7 +62,7 @@ INSTALLED_APPS = [
     'apps.orders',
     'apps.staff',
     'apps.promotion',
-    # 'django_extensions',
+    'django_extensions',
 ]
 
 INSTALLED_APPS += ['rest_framework']

@@ -1,0 +1,89 @@
+@startuml UC_OperateOrders_Detail
+title UC_OperateOrders (Staff – operate orders with SSE)
+
+actor "Kitchen" as Kitchen
+actor "Delivery" as Delivery
+participant "Web Client" as WebClient
+participant "Staff Orders API" as StaffOrdersAPI
+participant "Orders SSE API" as OrdersSSEAPI
+database "DB" as DB
+
+' =======================
+' Staff login (simplified)
+' =======================
+group Staff login (simplified)
+  Kitchen -> WebClient: Login with staff username/password
+  WebClient -> StaffOrdersAPI: POST /api/staff/login\n{ username, password }
+
+  StaffOrdersAPI -> DB: SELECT * FROM staff_staff\nWHERE username = ?
+  DB --> StaffOrdersAPI: staff row
+
+  StaffOrdersAPI -> StaffOrdersAPI: verify password & role
+  StaffOrdersAPI --> WebClient: 200 OK\nSet-Cookie: staff_access=<JWT>
+
+  WebClient --> Kitchen: Redirect to staff orders screen
+end
+
+' =======================
+' Load initial orders + subscribe SSE
+' =======================
+group Load initial orders
+  Kitchen -> WebClient: Open staff orders page
+  WebClient -> StaffOrdersAPI: GET /api/staff/orders\n?status=pending
+
+  StaffOrdersAPI -> DB: SELECT * FROM orders_order\nWHERE status = 'pending'\nORDER BY ordered_at
+  DB --> StaffOrdersAPI: pending orders
+
+  StaffOrdersAPI --> WebClient: 200 OK\n[ pending orders ]
+  WebClient --> Kitchen: Render orders list
+end
+
+group Subscribe order events (SSE)
+  WebClient -> OrdersSSEAPI: GET /api/staff/sse/orders\nAccept: text/event-stream
+
+  OrdersSSEAPI -> DB: SUBSCRIBE order notifications\n(LISTEN orders_events)
+  DB --> OrdersSSEAPI: ready to push events
+end
+
+' =======================
+' Accept / update orders
+' =======================
+group Accept order
+  Kitchen -> WebClient: Click "Accept" on order #{id}
+  WebClient -> StaffOrdersAPI: POST /api/staff/orders/{id}/action\n{ action: "accept" }
+
+  StaffOrdersAPI -> DB: SELECT * FROM orders_order\nWHERE id = {id} FOR UPDATE
+  DB --> StaffOrdersAPI: order row
+
+  StaffOrdersAPI -> DB: UPDATE orders_order\nSET status = 'preparing', accepted_at = NOW()\nWHERE id = {id}
+  DB --> StaffOrdersAPI: updated row
+
+  StaffOrdersAPI --> WebClient: 200 OK\n{ id, status='preparing', ... }
+
+  DB -> OrdersSSEAPI: NOTIFY orders_events\n(payload contains order {id})
+  OrdersSSEAPI --> WebClient: event: order_changed\ndata: { id, status='preparing', ... }
+  WebClient --> Kitchen: Update UI status to "preparing"
+end
+
+group Out for delivery / Delivered / Canceled
+  Delivery -> WebClient: Click "Out for delivery"
+  WebClient -> StaffOrdersAPI: POST /api/staff/orders/{id}/action\n{ action: "out_for_delivery" }
+
+  StaffOrdersAPI -> DB: UPDATE orders_order\nSET status='out_for_delivery', out_for_delivery_at=NOW()\nWHERE id = {id}
+  DB --> StaffOrdersAPI: updated row
+
+  DB -> OrdersSSEAPI: NOTIFY orders_events
+  OrdersSSEAPI --> WebClient: event: order_changed\n(status='out_for_delivery')
+
+  Delivery -> WebClient: Click "Delivered"
+  WebClient -> StaffOrdersAPI: POST /api/staff/orders/{id}/action\n{ action: "deliver" }
+
+  StaffOrdersAPI -> DB: UPDATE orders_order\nSET status='delivered', delivered_at=NOW()\nWHERE id = {id}
+  DB --> StaffOrdersAPI: updated row
+
+  DB -> OrdersSSEAPI: NOTIFY orders_events
+  OrdersSSEAPI --> WebClient: event: order_changed\n(status='delivered')
+  WebClient --> Delivery: Update UI status to "delivered"
+end
+
+@enduml

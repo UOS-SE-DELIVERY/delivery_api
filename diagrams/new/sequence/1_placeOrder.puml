@@ -1,0 +1,24 @@
+@startuml UC_PlaceOrder_Sequence
+title Place Order
+
+actor "Customer" as User
+
+participant "Web Client" as WebClient
+participant "Orders API" as OrdersAPI
+
+User -> WebClient: open order page
+WebClient --> User: show current cart and order form
+
+loop edit cart (add/remove/change options)
+  User -> WebClient: change cart contents
+  WebClient -> OrdersAPI: fetch price preview
+  OrdersAPI --> WebClient: price summary
+  WebClient --> User: update cart view and totals
+end
+
+User -> WebClient: confirm order
+WebClient -> OrdersAPI: place order
+OrdersAPI --> WebClient: created order data
+WebClient --> User: show order confirmation
+
+@enduml

@@ -1,0 +1,75 @@
+@startuml MrDinner_UseCases_Simplified
+title UseCase Diagram
+left to right direction
+
+skinparam packageStyle rectangle
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #FBFBFF
+  BorderColor #555
+}
+
+actor Guest
+actor Customer
+actor Staff
+actor Owner
+actor Manager
+actor Kitchen
+actor Delivery
+actor "Voice Recognition Service" as VoiceService
+
+Staff <|-- Owner
+Staff <|-- Manager
+Staff <|-- Kitchen
+Staff <|-- Delivery
+Guest <|-- Customer
+
+rectangle "Accounts" as PKG_Accounts {
+  usecase "Manage Account" as UC_CustAccount
+}
+
+rectangle "Catalog" as PKG_Catalog {
+  usecase "Browse Menu" as UC_BrowseMenu
+}
+
+rectangle "Orders" as PKG_Orders {
+  usecase "Place Order" as UC_PlaceOrder
+  usecase "View Order History" as UC_OrderHistory
+}
+
+rectangle "Staff Operations" as PKG_Staff {
+  usecase "Record Staff Shift" as UC_RecordShift
+  usecase "Operate Orders" as UC_OperateOrders
+  usecase "Manage Inventory" as UC_ManageInventory
+}
+
+rectangle "Promotion" as PKG_Promo {
+  usecase "Manage Promotions" as UC_ManagePromos
+}
+
+Guest -- UC_CustAccount
+Guest -- UC_BrowseMenu
+
+Customer -- UC_CustAccount
+Customer -- UC_BrowseMenu
+Customer -- UC_PlaceOrder
+Customer -- UC_OrderHistory
+
+VoiceService -- UC_PlaceOrder
+
+Staff -- UC_CustAccount
+Staff -- UC_RecordShift
+Staff -- UC_OperateOrders
+
+
+Owner -- UC_ManagePromos
+Manager -- UC_ManagePromos
+
+Owner -- UC_ManageInventory
+Manager -- UC_ManageInventory
+
+Kitchen -- UC_OperateOrders
+Delivery -- UC_OperateOrders
+
+@enduml

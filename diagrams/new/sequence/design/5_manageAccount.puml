@@ -1,0 +1,79 @@
+@startuml UC_ManageAccount_Detail
+title UC_ManageAccount (Register, Login, Logout, Profile)
+
+actor "Guest" as Guest
+actor "Customer" as Customer
+participant "Web Client" as WebClient
+participant "Accounts API" as AccountsAPI
+participant "DB" as DB
+
+' =======================
+' Register
+' =======================
+group Register new account
+  Guest -> WebClient: Fill registration form\n(username, password, phone, address, ...)
+  WebClient -> AccountsAPI: POST /api/accounts/register\n{username, password, phone, address, ...}
+
+  AccountsAPI -> DB: INSERT INTO accounts_customer\n(username, password_hash, phone, real_name, addresses, ...)
+  DB --> AccountsAPI: new customer id
+
+  AccountsAPI --> WebClient: 201 Created\n{ customer_id, username, profile }
+  WebClient --> Guest: Show registration success
+end
+
+' =======================
+' Login
+' =======================
+group Login
+  Customer -> WebClient: Input username + password
+  WebClient -> AccountsAPI: POST /api/accounts/login\n{ username, password }
+
+  AccountsAPI -> DB: SELECT * FROM accounts_customer\nWHERE username = ?
+  DB --> AccountsAPI: customer row
+
+  AccountsAPI -> AccountsAPI: verify password
+  AccountsAPI --> WebClient: 200 OK\nSet-Cookie: access=<JWT>
+
+  WebClient --> Customer: Redirect to my page
+end
+
+' =======================
+' View profile
+' =======================
+group View profile
+  Customer -> WebClient: Open "My Account"
+  WebClient -> AccountsAPI: GET /api/accounts/me\nCookie: access=<JWT>
+
+  AccountsAPI -> DB: SELECT * FROM accounts_customer\nWHERE customer_id = <from JWT>
+  DB --> AccountsAPI: customer row
+
+  AccountsAPI --> WebClient: 200 OK\n{ profile, addresses, loyalty_tier, ... }
+  WebClient --> Customer: Render profile information
+end
+
+' =======================
+' Update profile
+' =======================
+group Update profile
+  Customer -> WebClient: Edit profile fields\n(phone, real_name, address, ...)
+  WebClient -> AccountsAPI: PATCH /api/accounts/me\n{ partial profile data }
+
+  AccountsAPI -> DB: UPDATE accounts_customer\nSET phone=?, real_name=?, addresses=?\nWHERE customer_id = <from JWT>
+  DB --> AccountsAPI: updated row
+
+  AccountsAPI --> WebClient: 200 OK\n{ updated profile }
+  WebClient --> Customer: Show updated profile
+end
+
+' =======================
+' Logout
+' =======================
+group Logout
+  Customer -> WebClient: Click "Logout"
+  WebClient -> AccountsAPI: POST /api/accounts/logout\nCookie: access=<JWT>
+
+  AccountsAPI --> WebClient: 204 No Content\n(Set-Cookie: access=; Max-Age=0)
+  WebClient --> Customer: Redirect to login page
+end
+
+@enduml

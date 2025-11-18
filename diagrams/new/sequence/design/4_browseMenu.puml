@@ -1,0 +1,70 @@
+@startuml UC_BrowseMenu_Detail
+title UC_BrowseMenu (CatalogBootstrap + Item Detail + Dinner Full)
+
+actor "Guest" as Guest
+actor "Customer" as Customer
+participant "Web Client" as WebClient
+participant "Catalog API" as CatalogAPI
+database "DB" as DB
+
+' =======================
+' Load catalog bootstrap
+' =======================
+group Load catalog bootstrap
+  Guest -> WebClient: Open /menu
+  WebClient -> CatalogAPI: GET /api/catalog/bootstrap
+
+  CatalogAPI -> DB: SELECT * FROM catalog_menucategory\nWHERE active = TRUE\nORDER BY rank
+  DB --> CatalogAPI: category rows
+
+  CatalogAPI -> DB: SELECT * FROM catalog_menuitem\nWHERE active = TRUE
+  DB --> CatalogAPI: menu item rows
+
+  CatalogAPI -> DB: SELECT * FROM catalog_itemtag\nJOIN catalog_itemtagmap ...
+  DB --> CatalogAPI: tag rows
+
+  CatalogAPI --> WebClient: 200 OK\n{ categories, items, tags, ... }
+  WebClient --> Guest: Render menu list by category
+end
+
+' =======================
+' View single menu item
+' =======================
+group View menu item detail
+  Customer -> WebClient: Click specific menu item
+  WebClient -> CatalogAPI: GET /api/catalog/items/{code}/detail?expand=1
+
+  CatalogAPI -> DB: SELECT * FROM catalog_menuitem\nWHERE code = {code}
+  DB --> CatalogAPI: menu item row
+
+  CatalogAPI -> DB: SELECT option groups & options\nWHERE item_id = ?
+  DB --> CatalogAPI: option groups + options
+
+  CatalogAPI -> DB: SELECT availability windows\nWHERE item_id = ?
+  DB --> CatalogAPI: availability rows
+
+  CatalogAPI --> WebClient: 200 OK\n{ item, option_groups, availability, tags, ... }
+  WebClient --> Customer: Show item detail modal/page
+end
+
+' =======================
+' View dinner full info
+' =======================
+group View dinner full info
+  Customer -> WebClient: Select dinner type + serving style
+  WebClient -> CatalogAPI: GET /api/catalog/dinners/{dinner_code}/full
+
+  CatalogAPI -> DB: SELECT * FROM catalog_dinnertype\nWHERE code = {dinner_code}
+  DB --> CatalogAPI: dinner type row
+
+  CatalogAPI -> DB: SELECT * FROM catalog_dinnertypedefaultitem\nWHERE dinner_type_id = ?
+  DB --> CatalogAPI: default item rows
+
+  CatalogAPI -> DB: SELECT allowed serving styles\nFROM catalog_dinnerstyleallowed
+  DB --> CatalogAPI: allowed styles
+
+  CatalogAPI --> WebClient: 200 OK\n{ dinner, default_items, allowed_styles, option_groups }
+  WebClient --> Customer: Show dinner composition preview
+end
+
+@enduml

@@ -1,0 +1,34 @@
+@startuml UC_ManageInventory_Sequence
+title Manage Inventory
+
+actor "Owner / Manager" as ManagerUser
+
+participant "Web Client" as WebClient
+participant "Inventory Management Service" as InventoryService
+
+
+ManagerUser -> WebClient: open inventory screen
+WebClient -> InventoryService: request current inventory list
+InventoryService --> WebClient: list of items
+WebClient --> ManagerUser: show inventory table
+
+
+ManagerUser -> WebClient: edit multiple item rows
+WebClient -> InventoryService: send bulk stock changes
+InventoryService --> WebClient: updated items and result summary
+WebClient --> ManagerUser: show updated inventory
+
+
+ManagerUser -> WebClient: open single item editor
+ManagerUser -> WebClient: change stock or status of item
+WebClient -> InventoryService: send single item change
+InventoryService --> WebClient: updated item information
+WebClient --> ManagerUser: update item row
+
+
+ManagerUser -> WebClient: upload stock file
+WebClient -> InventoryService: send stock file for processing
+InventoryService --> WebClient: summary of applied stock updates
+WebClient --> ManagerUser: show upload result and new quantities
+
+@enduml

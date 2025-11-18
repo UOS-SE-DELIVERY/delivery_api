@@ -1,0 +1,52 @@
+@startuml UC_RecordStaffShift_Detail
+title UC_RecordStaffShift (Start / Stop Shift)
+
+actor "Staff" as Staff
+participant "Web Client" as WebClient
+participant "Staff Shift API" as StaffShiftAPI
+database "DB" as DB
+
+' =======================
+' Start shift
+' =======================
+group Start shift
+  Staff -> WebClient: Click "Start Shift"
+  WebClient -> StaffShiftAPI: POST /api/staff/shifts/start\nCookie: staff_access=<JWT>
+
+  StaffShiftAPI -> DB: SELECT * FROM staff_shift\nWHERE staff_id = ? AND end_time IS NULL
+  DB --> StaffShiftAPI: zero or one active shift
+
+  alt already on duty
+    StaffShiftAPI --> WebClient: 400 Bad Request\n{ error: "Already on duty" }
+    WebClient --> Staff: Show error message
+  else no active shift
+    StaffShiftAPI -> DB: INSERT INTO staff_shift\n(staff_id, start_time=NOW(), end_time=NULL)
+    DB --> StaffShiftAPI: new shift id
+
+    StaffShiftAPI --> WebClient: 201 Created\n{ shift_id, start_time }
+    WebClient --> Staff: Show "Shift started"
+  end
+end
+
+' =======================
+' Stop shift
+' =======================
+group Stop shift
+  Staff -> WebClient: Click "Stop Shift"
+  WebClient -> StaffShiftAPI: POST /api/staff/shifts/stop\nCookie: staff_access=<JWT>
+
+  StaffShiftAPI -> DB: SELECT * FROM staff_shift\nWHERE staff_id = ? AND end_time IS NULL\nFOR UPDATE
+  DB --> StaffShiftAPI: active shift row
+
+  StaffShiftAPI -> DB: UPDATE staff_shift\nSET end_time = NOW()\nWHERE id = <shift_id>
+  DB --> StaffShiftAPI: updated row
+
+  StaffShiftAPI -> StaffShiftAPI: calculate worked minutes\n(consider Asia/Seoul date split)
+  StaffShiftAPI -> DB: INSERT/UPDATE staff_dailyhours\n(add worked_minutes for each work_date)
+  DB --> StaffShiftAPI: upserted daily hours
+
+  StaffShiftAPI --> WebClient: 200 OK\n{ shift_id, worked_minutes_today, worked_minutes_total }
+  WebClient --> Staff: Show today's worked time
+end
+
+@enduml

@@ -1,0 +1,66 @@
+@startuml UC_ManageInventory_Detail
+title UC_ManageInventory (View / Adjust / Upload Inventory)
+
+actor "Owner" as Owner
+actor "Manager" as Manager
+participant "Web Client" as WebClient
+participant "Inventory API" as InventoryAPI
+database "DB" as DB
+
+' =======================
+' View inventory items
+' =======================
+group View inventory items
+  Owner -> WebClient: Open "Inventory" screen
+  WebClient -> InventoryAPI: GET /api/staff/inventory/items\n?search=&page=...
+
+  InventoryAPI -> DB: SELECT inventory items\nJOIN catalog_menuitem\nORDER BY code
+  DB --> InventoryAPI: [ { code, name, qty, active, ... }, ... ]
+
+  InventoryAPI --> WebClient: 200 OK\n[ items ]
+  WebClient --> Owner: Render inventory table
+end
+
+' =======================
+' Adjust single item
+' =======================
+group Adjust single item
+  Manager -> WebClient: Edit qty / active for item {code}
+  WebClient -> InventoryAPI: PATCH /api/staff/inventory/items/{code}\n{ qty, delta?, active, reason }
+
+  InventoryAPI -> DB: SELECT inventory item\nWHERE code = {code}
+  DB --> InventoryAPI: current inventory row
+
+  InventoryAPI -> DB: UPDATE inventory item\nSET qty = qty + delta OR qty = ?, active = ?\nWHERE code = {code}
+  DB --> InventoryAPI: updated row
+
+  InventoryAPI --> WebClient: 200 OK\n{ updated qty, active, ... }
+  WebClient --> Manager: Show updated inventory row
+end
+
+' =======================
+' Bulk upload inventory
+' =======================
+group Bulk upload inventory
+  Owner -> WebClient: Upload inventory.xlsx
+  WebClient -> InventoryAPI: POST /api/staff/inventory/upload\n(file: inventory.xlsx)
+
+  InventoryAPI -> InventoryAPI: Parse spreadsheet rows
+
+  loop for each row
+    InventoryAPI -> DB: SELECT catalog_menuitem\nWHERE code = row.code
+    DB --> InventoryAPI: item exists / not
+
+    alt valid item
+      InventoryAPI -> DB: INSERT or UPDATE inventory item\nSET qty=row.qty, active=row.active
+      DB --> InventoryAPI: ok
+    else invalid item
+      InventoryAPI -> InventoryAPI: collect error for row.code
+    end
+  end
+
+  InventoryAPI --> WebClient: 200 OK\n{ updated_items[], errors[] }
+  WebClient --> Owner: Show result per row
+end
+
+@enduml

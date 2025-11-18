@@ -1,0 +1,50 @@
+@startuml MrDinner_Customer_Activity
+title Customer Activity Diagram
+
+start
+
+:Open Mr. Dinner service;
+
+if (Has account?) then (yes)
+  :Log in;
+else (no)
+  :Register account;
+  :Log in;
+endif
+
+if (Wants to manage profile?) then (yes)
+  :Manage profile\n(name, phone, address, password, consent);
+else (no)
+  :Skip profile management;
+endif
+
+while (Wants to place an order?) is (yes)
+  :Browse menu and dinner details;
+
+  while (Editing cart?) is (yes)
+    :Change items and options in cart;
+    :See updated price and discounts;
+  endwhile (no)
+
+  if (Confirm order?) then (yes)
+    :Submit order;
+    :See order confirmation;
+    while (Order is running?) is (yes)
+      :Check order status;
+    endwhile (no)
+    :Receive dinner;
+  else (no)
+    :Leave cart without ordering;
+  endif
+endwhile (no)
+
+if (Wants to review past orders?) then (yes)
+  :View order history and details;
+else (no)
+  :Skip order history view;
+endif
+
+:Log out or close service;
+
+end
+@enduml

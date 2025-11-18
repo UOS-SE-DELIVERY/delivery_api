@@ -1,0 +1,34 @@
+@startuml UC_OrderHistory_Detail
+title UC_OrderHistory (View Order History)
+
+actor "Customer" as Customer
+participant "Web Client" as WebClient
+participant "Orders API" as OrdersAPI
+database "DB" as DB
+
+group View order history
+  Customer -> WebClient: Open "My Orders"
+  WebClient -> OrdersAPI: GET /api/orders\n?customer_id=current_user
+
+  OrdersAPI -> DB: SELECT * FROM orders_order\nWHERE customer_id = ?\nORDER BY ordered_at DESC
+  DB --> OrdersAPI: order rows
+
+  OrdersAPI --> WebClient: 200 OK\n[ { id, status, subtotal_cents, total_cents, ordered_at, ... }, ... ]
+  WebClient --> Customer: Render order history list
+end
+
+group View order detail
+  Customer -> WebClient: Click specific order
+  WebClient -> OrdersAPI: GET /api/orders/{id}
+
+  OrdersAPI -> DB: SELECT * FROM orders_order\nWHERE id = {id}
+  DB --> OrdersAPI: order row
+
+  OrdersAPI -> DB: SELECT dinners, items, options\nWHERE order_id = {id}
+  DB --> OrdersAPI: related rows
+
+  OrdersAPI --> WebClient: 200 OK\n{ order header + dinners + items + options }
+  WebClient --> Customer: Show order detail page
+end
+
+@enduml

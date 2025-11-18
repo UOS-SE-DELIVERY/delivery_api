@@ -1,0 +1,27 @@
+@startuml UC_RecordStaffShift_Sequence
+title Record Staff Shift
+
+actor "Staff" as StaffUser
+
+participant "Web Client" as WebClient
+participant "Staff API" as StaffAPI
+
+
+StaffUser -> WebClient: open shift panel
+WebClient -> StaffAPI: request current shift status
+StaffAPI --> WebClient: return shift status
+WebClient --> StaffUser: show shift status
+
+
+StaffUser -> WebClient: click start shift
+WebClient -> StaffAPI: send shift start request
+StaffAPI --> WebClient: confirm shift started
+WebClient --> StaffUser: show active shift
+
+
+StaffUser -> WebClient: click stop shift
+WebClient -> StaffAPI: send shift stop request
+StaffAPI --> WebClient: return worked time summary
+WebClient --> StaffUser: show worked time
+
+@enduml

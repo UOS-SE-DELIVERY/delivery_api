@@ -1,0 +1,36 @@
+@startuml UC_BrowseMenu_Sequence
+title Browse Menu
+
+actor "Customer" as User
+
+participant "Web Client" as WebClient
+participant "Catalog API" as CatalogAPI
+
+
+User -> WebClient: open menu page
+WebClient -> CatalogAPI: GET /catalog/bootstrap
+CatalogAPI --> WebClient: categories, tags, dinners
+WebClient --> User: show menu view
+
+
+User -> WebClient: browse menu list
+
+
+
+User -> WebClient: select dinner
+WebClient -> CatalogAPI: GET /catalog/dinners/{dinnerCode}
+CatalogAPI --> WebClient: dinner detail
+WebClient --> User: show dinner detail
+
+User -> WebClient: select item
+WebClient -> CatalogAPI: GET /catalog/items/{itemCode}
+CatalogAPI --> WebClient: item detail
+WebClient --> User: show item detail
+
+
+User -> WebClient: open add-ons list
+WebClient -> CatalogAPI: GET /catalog/menu/addons/{dinnerCode}
+CatalogAPI --> WebClient: add-ons list
+WebClient --> User: show add-ons list
+
+@enduml

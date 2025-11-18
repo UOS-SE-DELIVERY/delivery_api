@@ -1,0 +1,413 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+' =======================
+' ACCOUNTS
+' =======================
+package "apps.accounts" {
+
+  class AccountsConfig {
+    +default_auto_field: str
+    +name: str
+  }
+
+  class Customer {
+    +customer_id: BigAutoField
+    +username: TextField
+    +password: CharField
+    +real_name: TextField
+    +phone: TextField
+    +addresses: JSONField
+    +profile_consent: BooleanField
+    +profile_consent_at: DateTimeField
+    +loyalty_tier: TextField
+    +created_at: DateTimeField
+    +is_anonymous: bool
+    +is_authenticated: bool
+  }
+
+  enum LoyaltyTier {
+    {field} name
+  }
+}
+
+package "apps.accounts.auth" {
+  class JWTAuthentication {
+    +authenticate(request)
+  }
+}
+
+' =======================
+' CATALOG
+' =======================
+package "apps.catalog" {
+
+  class CatalogConfig {
+    +default_auto_field: str
+    +name: str
+  }
+
+  enum OptionSelectMode {
+    {field} name
+  }
+
+  enum PriceMode {
+    {field} name
+  }
+
+  class MenuCategory {
+    +category_id: BigAutoField
+    +name: TextField
+    +slug: SlugField
+    +rank: IntegerField
+    +active: BooleanField
+    +parent: MenuCategory
+  }
+
+  class MenuItem {
+    +item_id: BigAutoField
+    +code: CharField
+    +name: TextField
+    +description: TextField
+    +unit: CharField
+    +base_price_cents: PositiveIntegerField
+    +attrs: JSONField
+    +active: BooleanField
+    +category: MenuCategory
+    +tags: ManyToManyField
+  }
+
+  class ItemTag {
+    +tag_id: BigAutoField
+    +name: CharField
+  }
+
+  class ItemTagMap {
+    +item: MenuItem
+    +tag: ItemTag
+  }
+
+  class ItemOptionGroup {
+    +group_id: BigAutoField
+    +item: MenuItem
+    +name: TextField
+    +is_required: BooleanField
+    +is_variant: BooleanField
+    +min_select: PositiveIntegerField
+    +max_select: IntegerField
+    +select_mode: CharField
+    +price_mode: CharField
+    +rank: IntegerField
+  }
+
+  class ItemOption {
+    +option_id: BigAutoField
+    +group: ItemOptionGroup
+    +name: TextField
+    +is_default: BooleanField
+    +multiplier: DecimalField
+    +price_delta_cents: PositiveIntegerField
+    +rank: IntegerField
+  }
+
+  class ServingStyle {
+    +style_id: BigAutoField
+    +code: CharField
+    +name: TextField
+    +notes: TextField
+    +price_mode: CharField
+    +price_value: DecimalField
+  }
+
+  class DinnerType {
+    +dinner_type_id: BigAutoField
+    +code: CharField
+    +name: TextField
+    +description: TextField
+    +base_price_cents: PositiveIntegerField
+    +active: BooleanField
+  }
+
+  class DinnerTypeDefaultItem {
+    +dinner_type: DinnerType
+    +item: MenuItem
+    +default_qty: DecimalField
+    +included_in_base: BooleanField
+    +notes: TextField
+  }
+
+  class DinnerOptionGroup {
+    +group_id: BigAutoField
+    +dinner_type: DinnerType
+    +name: TextField
+    +is_required: BooleanField
+    +min_select: PositiveIntegerField
+    +max_select: IntegerField
+    +select_mode: CharField
+    +price_mode: CharField
+    +rank: IntegerField
+  }
+
+  class DinnerOption {
+    +option_id: BigAutoField
+    +group: DinnerOptionGroup
+    +item: MenuItem
+    +name: TextField
+    +is_default: BooleanField
+    +multiplier: DecimalField
+    +price_delta_cents: PositiveIntegerField
+    +rank: IntegerField
+  }
+
+  class DinnerStyleAllowed {
+    +dinner_type: DinnerType
+    +style: ServingStyle
+  }
+
+  class ItemAvailability {
+    +item: MenuItem
+    +dow: IntegerField
+    +start_date: DateField
+    +end_date: DateField
+    +start_time: TimeField
+    +end_time: TimeField
+  }
+}
+
+' =======================
+' ORDERS
+' =======================
+package "apps.orders" {
+
+  class OrdersConfig {
+    +default_auto_field: str
+    +name: str
+  }
+
+  enum OrderSource {
+    {field} name
+  }
+
+  enum OrderStatus {
+    {field} name
+  }
+
+  enum ChangeType {
+    {field} name
+  }
+
+  class Order {
+    +id: BigAutoField
+    +customer: Customer
+    +receiver_name: TextField
+    +receiver_phone: TextField
+    +delivery_address: TextField
+    +place_label: TextField
+    +geo_lat: DecimalField
+    +geo_lng: DecimalField
+    +address_meta: JSONField
+    +payment_token: TextField
+    +card_last4: CharField
+    +order_source: CharField
+    +status: CharField
+    +subtotal_cents: PositiveIntegerField
+    +discount_cents: PositiveIntegerField
+    +total_cents: PositiveIntegerField
+    +meta: JSONField
+    +ordered_at: DateTimeField
+
+    +accept(by_staff_id: int): Order
+    +cancel(by_staff_id: int, reason: Optional[str]): Order
+    +deliver(by_staff_id: int): Order
+    +mark_ready(by_staff_id: int): Order
+    +out_for_delivery(by_staff_id: int): Order
+  }
+
+  class OrderDinner {
+    +id: BigAutoField
+    +order: Order
+    +dinner_type: DinnerType
+    +style: ServingStyle
+    +person_label: TextField
+    +notes: TextField
+    +quantity: DecimalField
+    +base_price_cents: PositiveIntegerField
+    +style_adjust_cents: PositiveIntegerField
+  }
+
+  class OrderDinnerItem {
+    +id: BigAutoField
+    +order_dinner: OrderDinner
+    +item: MenuItem
+    +is_default: BooleanField
+    +change_type: CharField
+    +final_qty: DecimalField
+    +unit_price_cents: PositiveIntegerField
+  }
+
+  class OrderDinnerOption {
+    +id: BigAutoField
+    +order_dinner: OrderDinner
+    +option_group_name: TextField
+    +option_name: TextField
+    +multiplier: DecimalField
+    +price_delta_cents: PositiveIntegerField
+  }
+
+  class OrderItemOption {
+    +id: BigAutoField
+    +order_dinner_item: OrderDinnerItem
+    +option_group_name: TextField
+    +option_name: TextField
+    +multiplier: DecimalField
+    +price_delta_cents: PositiveIntegerField
+  }
+}
+
+' =======================
+' PROMOTION
+' =======================
+package "apps.promotion" {
+
+  class PromotionConfig {
+    +default_auto_field: str
+    +label: str
+    +name: str
+  }
+
+  class Coupon {
+    +id: BigAutoField
+    +name: CharField
+    +label: CharField
+    +code: CharField
+    +kind: CharField
+    +channel: CharField
+    +value: DecimalField
+    +min_subtotal_cents: IntegerField
+    +max_discount_cents: IntegerField
+    +max_redemptions_global: IntegerField
+    +max_redemptions_per_user: IntegerField
+    +stackable_with_coupons: BooleanField
+    +stackable_with_membership: BooleanField
+    +active: BooleanField
+    +valid_from: DateTimeField
+    +valid_until: DateTimeField
+    +notes: TextField
+    +created_at: DateTimeField
+    +updated_at: DateTimeField
+
+    +activate(): Coupon
+    +deactivate(): Coupon
+    +is_valid_now(now): bool
+    +can_redeem(): Tuple[bool, Optional[str]]
+    +redeem(): int
+    +save()
+  }
+
+  class CouponRedemption {
+    +coupon: Coupon
+    +customer: Customer
+    +order: Order
+    +amount_cents: IntegerField
+    +channel: CharField
+    +redeemed_at: DateTimeField
+  }
+
+  class Membership {
+    +id: BigAutoField
+    +customer: Customer
+    +label: CharField
+    +percent_off: DecimalField
+    +active: BooleanField
+    +valid_from: DateTimeField
+    +valid_until: DateTimeField
+
+    +is_valid_now(now): bool
+  }
+}
+
+' =======================
+' STAFF
+' =======================
+package "apps.staff" {
+
+  class StaffConfig {
+    +label: str
+    +name: str
+    +verbose_name: str
+  }
+
+  enum StaffRole {
+    {field} name
+  }
+
+  class Staff {
+    +id: BigAutoField
+    +username: CharField
+    +password: CharField
+    +role: CharField
+    +is_active: BooleanField
+    +is_anonymous: bool
+    +is_authenticated: bool
+    +created_at: DateTimeField
+
+    +set_password(raw_password: str)
+    +check_password(raw_password: str): bool
+  }
+}
+
+package "apps.staff.auth" {
+  class StaffJWTAuthentication {
+    +authenticate(request)
+  }
+}
+
+' =======================
+' RELATIONSHIPS
+' =======================
+
+' Catalog internal relations
+MenuCategory "1" o-- "0..*" MenuCategory : parent
+MenuCategory "1" o-- "0..*" MenuItem : category
+MenuItem "1" o-- "0..*" ItemOptionGroup : option_groups
+ItemOptionGroup "1" o-- "0..*" ItemOption : options
+MenuItem "1" o-- "0..*" ItemAvailability : availability
+MenuItem "1" o-- "0..*" DinnerTypeDefaultItem : default_items
+DinnerType "1" o-- "0..*" DinnerTypeDefaultItem : default_items
+DinnerType "1" o-- "0..*" DinnerOptionGroup : option_groups
+DinnerOptionGroup "1" o-- "0..*" DinnerOption : options
+DinnerType "1" o-- "0..*" DinnerStyleAllowed : allowed_styles
+ServingStyle "1" o-- "0..*" DinnerStyleAllowed : allowed_for
+MenuItem "1" o-- "0..*" ItemTagMap : item_tag_maps
+ItemTag "1" o-- "0..*" ItemTagMap : item_tag_maps
+MenuItem "0..*" -- "0..*" ItemTag : tags
+
+' Orders relations
+Customer "1" o-- "0..*" Order : customer
+Order "1" o-- "0..*" OrderDinner : dinners
+DinnerType "1" o-- "0..*" OrderDinner : dinners
+ServingStyle "1" o-- "0..*" OrderDinner : style
+OrderDinner "1" o-- "0..*" OrderDinnerItem : items
+MenuItem "1" o-- "0..*" OrderDinnerItem : items
+OrderDinner "1" o-- "0..*" OrderDinnerOption : options
+OrderDinnerItem "1" o-- "0..*" OrderItemOption : options
+
+' Promotion relations
+Customer "1" o-- "0..1" Membership : membership
+Customer "1" o-- "0..*" CouponRedemption : redemptions
+Order "1" o-- "0..*" CouponRedemption : redemptions
+Coupon "1" o-- "0..*" CouponRedemption : redemptions
+
+' Enum usage (dashed, semantic only)
+Customer ..> LoyaltyTier : loyalty_tier
+ItemOptionGroup ..> OptionSelectMode : select_mode
+ServingStyle ..> PriceMode : price_mode
+Order ..> OrderSource : order_source
+Order ..> OrderStatus : status
+OrderDinnerItem ..> ChangeType : change_type
+Staff ..> StaffRole : role
+
+
+
+@enduml

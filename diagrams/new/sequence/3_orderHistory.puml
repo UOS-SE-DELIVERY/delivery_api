@@ -1,0 +1,19 @@
+@startuml UC_ViewOrderHistory_Sequence
+title View Order History
+
+actor "Customer" as User
+
+participant "Web Client" as WebClient
+participant "Orders API" as OrdersAPI
+
+User -> WebClient: open order history page
+WebClient -> OrdersAPI: fetch order history
+OrdersAPI --> WebClient: list of orders
+WebClient --> User: show order list
+
+User -> WebClient: select order
+WebClient -> OrdersAPI: fetch order detail
+OrdersAPI --> WebClient: order detail
+WebClient --> User: show order detail
+
+@enduml

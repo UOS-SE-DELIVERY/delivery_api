@@ -1,0 +1,31 @@
+@startuml UC_OperateOrders_Sequence
+title Operate Orders
+
+actor "Staff" as StaffUser
+
+participant "Web Client" as WebClient
+participant "Staff Operations Service" as StaffOps
+
+StaffUser -> WebClient: open staff orders console
+WebClient -> StaffOps: request current orders
+StaffOps --> WebClient: list of active orders
+WebClient --> StaffUser: show orders console
+
+loop receive order updates
+  StaffOps --> WebClient: order status update
+  WebClient --> StaffUser: refresh order list and status
+end
+
+loop operate on multiple orders
+  StaffUser -> WebClient: select order from list
+  WebClient -> StaffOps: request order detail
+  StaffOps --> WebClient: order detail
+  WebClient --> StaffUser: show order detail
+
+  StaffUser -> WebClient: choose action\n(accept / mark ready / dispatch / delivered / cancel)
+  WebClient -> StaffOps: send selected action for order
+  StaffOps --> WebClient: updated order information
+  WebClient --> StaffUser: update order list and detail
+end
+
+@enduml

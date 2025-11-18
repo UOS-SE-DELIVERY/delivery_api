@@ -1,0 +1,86 @@
+@startuml UC_ManagePromotions_Detail
+title UC_ManagePromotions (Coupons & Memberships)
+
+actor "Owner" as Owner
+actor "Manager" as Manager
+participant "Web Client" as WebClient
+participant "Promotion API" as PromotionAPI
+database "DB" as DB
+
+' =======================
+' List coupons
+' =======================
+group List coupons
+  Owner -> WebClient: Open "Coupons" screen
+  WebClient -> PromotionAPI: GET /api/staff/promotions/coupons
+
+  PromotionAPI -> DB: SELECT * FROM promotion_coupon\nORDER BY created_at DESC
+  DB --> PromotionAPI: coupon rows
+
+  PromotionAPI --> WebClient: 200 OK\n[ { code, label, kind, value, active, ... }, ... ]
+  WebClient --> Owner: Render coupon list
+end
+
+' =======================
+' Create coupon
+' =======================
+group Create coupon
+  Manager -> WebClient: Fill new coupon form
+  WebClient -> PromotionAPI: POST /api/staff/promotions/coupons\n{ code, label, kind, value, constraints, ... }
+
+  PromotionAPI -> DB: INSERT INTO promotion_coupon\n(code, label, kind, value, ..., active=TRUE)
+  DB --> PromotionAPI: new coupon id
+
+  PromotionAPI --> WebClient: 201 Created\n{ id, code, ... }
+  WebClient --> Manager: Show new coupon in list
+end
+
+' =======================
+' Update / deactivate coupon
+' =======================
+group Update / deactivate coupon
+  Manager -> WebClient: Edit coupon {code}\n(change value / active flag)
+  WebClient -> PromotionAPI: PATCH /api/staff/promotions/coupons/{code}\n{ value?, active? }
+
+  PromotionAPI -> DB: SELECT * FROM promotion_coupon\nWHERE code = {code}
+  DB --> PromotionAPI: coupon row
+
+  PromotionAPI -> DB: UPDATE promotion_coupon\nSET value=?, active=?\nWHERE code = {code}
+  DB --> PromotionAPI: updated row
+
+  PromotionAPI --> WebClient: 200 OK\n{ updated coupon }
+  WebClient --> Manager: Show updated coupon
+end
+
+' =======================
+' List memberships
+' =======================
+group List memberships
+  Owner -> WebClient: Open "Membership" screen
+  WebClient -> PromotionAPI: GET /api/staff/promotions/memberships
+
+  PromotionAPI -> DB: SELECT * FROM promotion_membership\nORDER BY valid_from
+  DB --> PromotionAPI: membership rows
+
+  PromotionAPI --> WebClient: 200 OK\n[ memberships ]
+  WebClient --> Owner: Render membership tiers
+end
+
+' =======================
+' Update membership
+' =======================
+group Update membership
+  Owner -> WebClient: Edit membership tier
+  WebClient -> PromotionAPI: PATCH /api/staff/promotions/memberships/{id}\n{ percent_off, valid_until, ... }
+
+  PromotionAPI -> DB: SELECT * FROM promotion_membership\nWHERE id = {id}
+  DB --> PromotionAPI: membership row
+
+  PromotionAPI -> DB: UPDATE promotion_membership\nSET fields...\nWHERE id = {id}
+  DB --> PromotionAPI: updated row
+
+  PromotionAPI --> WebClient: 200 OK\n{ updated membership }
+  WebClient --> Owner: Show updated tier
+end
+
+@enduml
