@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.renderers import BaseRenderer, JSONRenderer, BrowsableAPIRenderer
+from rest_framework.negotiation import BaseContentNegotiation
 
 import io
 import csv
@@ -46,6 +48,8 @@ from rest_framework import serializers
     description=(
         "성공 시 JSON과 함께 **HTTPOnly 쿠키**가 설정됩니다. "
         "프런트엔드는 **Authorization 헤더 없이 쿠키 기반 인증**을 사용합니다."
+        "username: owner / manager / kitchen / delivery"
+        "password: 1234(동일)"
     ),
     request=StaffLoginSerializer,
     responses={
@@ -61,7 +65,7 @@ from rest_framework import serializers
     examples=[
         OpenApiExample(
             name="요청 예시",
-            value={"username": "manager1", "password": "P@ssw0rd-1"},
+            value={"username": "owner/manager/kitchen/delivery", "password": "1234"},
             request_only=True
         ),
         OpenApiExample(
@@ -345,13 +349,40 @@ class StaffOrderDetailView(APIView):
 
 
 # ---------- SSE (Orders) ----------
+class EventStreamRenderer(BaseRenderer):
+    media_type = "text/event-stream"
+    format = "event-stream"
+    charset = "utf-8"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        if data is None:
+            return b""
+        if isinstance(data, (bytes, bytearray)):
+            return bytes(data)
+        if isinstance(data, str):
+            return data.encode("utf-8", "replace")
+        return (json.dumps(data, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+class IgnoreClientContentNegotiation(BaseContentNegotiation):
+    """클라이언트 Accept와 무관하게 첫 렌더러(EventStreamRenderer)로 고정."""
+    def select_renderer(self, request, renderers, format_suffix=None):
+        return (renderers[0], renderers[0].media_type)
+
+
+# --- SSE 응답 헤더 보강 ---
 def _sse_headers(resp: StreamingHttpResponse) -> StreamingHttpResponse:
     resp["Content-Type"] = "text/event-stream; charset=utf-8"
     resp["Cache-Control"] = "no-cache, no-transform"
+    resp["X-Accel-Buffering"] = "no"   # 리버스 프록시 버퍼링 방지
     return resp
 
+
 @method_decorator(csrf_exempt, name="dispatch")
-class OrdersSSEView(View):
+class OrdersSSEView(APIView):
+    renderer_classes = [EventStreamRenderer, JSONRenderer, BrowsableAPIRenderer]
+    content_negotiation_class = IgnoreClientContentNegotiation
+
     authentication_classes = [StaffJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -421,20 +452,6 @@ class OrdersSSEView(View):
             OpenApiParameter("limit", int, OpenApiParameter.QUERY, required=False),
         ],
         responses={200: OpenApiResponse(description="text/event-stream (SSE)")},
-        examples=[
-            OpenApiExample(
-                name="SSE 예시",
-                value=(
-                    "event: bootstrap\n"
-                    "data: [{\"id\":123,\"status\":\"pending\",\"ordered_at\":\"2025-10-28T10:10:10+09:00\","
-                    "\"customer_id\":6,\"order_source\":\"GUI\",\"subtotal_cents\":21000,\"total_cents\":20000,"
-                    "\"receiver_name\":\"홍길동\",\"place_label\":\"집\"}]\n\n"
-                    "event: orders_events\n"
-                    "data: {\"event\":\"accepted\",\"order_id\":123,\"at\":\"2025-10-28T10:12:00+09:00\"}\n\n"
-                ),
-                response_only=True
-            )
-        ]
     )
     def get(self, request):
         def stream():

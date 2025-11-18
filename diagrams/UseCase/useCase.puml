@@ -1,6 +1,7 @@
-@startuml MrDinner_UseCases_ByApp
-title UseCaseDiagram
+@startuml MrDinner_UseCases_Simplified
+title UseCase Diagram
 left to right direction
+
 skinparam packageStyle rectangle
 skinparam roundcorner 8
 skinparam shadowing false
@@ -9,7 +10,6 @@ skinparam usecase {
   BorderColor #555
 }
 
-' ==== Actors ====
 actor Guest
 actor Customer
 actor Staff
@@ -19,166 +19,62 @@ actor Kitchen
 actor Delivery
 actor "Voice Recognition Service" as VoiceService
 
-' Generalization (solid line + hollow triangle to parent)
 Staff <|-- Owner
 Staff <|-- Manager
 Staff <|-- Kitchen
 Staff <|-- Delivery
 Guest <|-- Customer
 
-' ===================== Packages =====================
 rectangle "Accounts" as PKG_Accounts {
-  usecase "Register Account" as UC_Register
-  usecase "Login" as UC_Login
-  usecase "Logout" as UC_Logout
-
-  usecase "Update Profile" as UC_UpdateProfile
-  usecase "Manage Profile Consent" as UC_ManageConsent
-  usecase "Change Real Name" as UC_ChangeRealName
-  usecase "Change Phone" as UC_ChangePhone
-  usecase "Change Address" as UC_ChangeAddress
-  usecase "Change Password" as UC_ChangePassword
+  usecase "Manage Account" as UC_CustAccount
 }
 
 rectangle "Catalog" as PKG_Catalog {
   usecase "Browse Menu" as UC_BrowseMenu
-  usecase "View Dinner Detail" as UC_ViewDinnerDetail
-  usecase "Price Preview" as UC_PricePreview
 }
 
 rectangle "Orders" as PKG_Orders {
-  usecase "Place Order" as UC_PlaceOrder
-  usecase "Start Voice Order" as UC_StartVoiceOrder
-  usecase "Apply Coupon" as UC_ApplyCoupon
-
-  ' Tracking / History
-  usecase "Track Order" as UC_TrackOrder
-  usecase "View Order List" as UC_ViewOrderList
-  usecase "View Order Detail" as UC_ViewOrderDetail
-
-  ' Modify after order (pending only)
-  usecase "Modify Order" as UC_ModifyOrder
-
-  ' Cart
   usecase "Manage Cart" as UC_ManageCart
-  usecase "View Cart" as UC_ViewCart
-  usecase "Add Item to Cart" as UC_AddCartItem
-  usecase "Update Cart Item" as UC_UpdateCartItem
-  usecase "Remove Cart Item" as UC_RemoveCartItem
+  usecase "Place Order" as UC_PlaceOrder
+  usecase "View Order History" as UC_OrderHistory
 }
 
-rectangle "StaffOps" as PKG_Staff {
-  ' Common to all staff (inherited by child actors)
-  usecase "Staff Login" as UC_StaffLogin
-  usecase "Staff Logout" as UC_StaffLogout
-  usecase "View My Profile" as UC_StaffMe
-
-  ' Shifts
-  usecase "View My Shifts" as UC_ViewShifts
-  usecase "Start Shift" as UC_StartShift
-  usecase "Stop Shift" as UC_StopShift
-
-  ' Order operations (context: View Orders)
-  usecase "View Orders" as UC_ViewOrders
-  usecase "Accept Order" as UC_AcceptOrder
-  usecase "Mark Ready" as UC_MarkReady
-  usecase "Dispatch Delivery" as UC_Dispatch
-  usecase "Mark Delivered" as UC_MarkDelivered
-  usecase "Cancel Order" as UC_CancelOrder
-  usecase "Subscribe Order Events (SSE)" as UC_SubscribeSSE
-
-  ' Staff management
+rectangle "Staff Operations" as PKG_Staff {
+  usecase "Record Staff Shift" as UC_RecordShift
+  usecase "Operate Orders" as UC_OperateOrders
   usecase "Manage Staff" as UC_ManageStaff
+  usecase "Manage Inventory" as UC_ManageInventory
 }
 
 rectangle "Promotion" as PKG_Promo {
-  usecase "Manage Coupons" as UC_ManageCoupons
-  usecase "Manage Memberships" as UC_ManageMemberships
-  usecase "Apply Membership" as UC_ApplyMembership
+  usecase "Manage Promotions" as UC_ManagePromos
 }
 
-' ===================== Associations =====================
-
-' Guest / Customer with Catalog & Accounts
+Guest -- UC_CustAccount
 Guest -- UC_BrowseMenu
-Guest -- UC_Register
-Guest -- UC_Login
 
-Customer -- UC_Login
-Customer -- UC_Logout
-Customer -- UC_UpdateProfile
+Customer -- UC_CustAccount
+Customer -- UC_BrowseMenu
+Customer -- UC_ManageCart
+Customer -- UC_PlaceOrder
+Customer -- UC_OrderHistory
 
-' Customer with Orders
-Customer -- UC_ViewOrderList
-Customer -- UC_StartVoiceOrder
+VoiceService -- UC_PlaceOrder
 
-' Customer with Cart
-Customer -- UC_ViewCart
+Staff -- UC_CustAccount
+Staff -- UC_RecordShift
+Staff -- UC_OperateOrders
 
-' External service
-VoiceService -- UC_StartVoiceOrder
-
-' Staff common (attach to parent; children inherit)
-Staff -- UC_ViewOrders
-Staff -- UC_StaffLogin
-Staff -- UC_StaffLogout
-Staff -- UC_StaffMe
-Staff -- UC_StartShift
-Staff -- UC_StopShift
-
-' Role-specific ops (권한은 기본 UC 연결 + extend로 표현)
 Owner -- UC_ManageStaff
-Owner -- UC_ManageCoupons
-Owner -- UC_ManageMemberships
-
 Manager -- UC_ManageStaff
-Manager -- UC_ManageCoupons
-Manager -- UC_ManageMemberships
 
-' ===================== Include / Extend (clean) =====================
+Owner -- UC_ManagePromos
+Manager -- UC_ManagePromos
 
-' Accounts: Profile 화면 내 토글/개별 필드 변경
-UC_ManageConsent ..> UC_UpdateProfile : <<extend>>
-UC_ChangeRealName ..> UC_UpdateProfile : <<extend>>
-UC_ChangePhone ..> UC_UpdateProfile   : <<extend>>
-UC_ChangeAddress ..> UC_UpdateProfile : <<extend>>
-UC_ChangePassword ..> UC_UpdateProfile: <<extend>>
-UC_ViewShifts ..> UC_StaffMe : <<extend>>
+Owner -- UC_ManageInventory
+Manager -- UC_ManageInventory
 
-' Catalog/Orders: 주문 플로우 (Price Preview는 주문에 포함)
-UC_PlaceOrder ..> UC_PricePreview : <<include>>
-UC_ApplyCoupon ..> UC_PlaceOrder  : <<extend>>
-UC_StartVoiceOrder ..> UC_PlaceOrder : <<extend>>
-' (제거 권장) UC_BrowseMenu ..> UC_PlaceOrder : <<extend>> 
-
-' Orders: Tracking/History 구성
-UC_ViewOrderDetail ..> UC_TrackOrder  : <<include>>
-UC_ViewOrderDetail ..> UC_ViewOrderList : <<extend>>
-' Modify Order (pending에서만 허용, 가격 재계산 포함)
-UC_ModifyOrder ..> UC_ViewOrderDetail : <<extend>>
-UC_ModifyOrder ..> UC_PricePreview    : <<include>>
-
-' Cart 구성 (View first → optional Manage)
-UC_ViewCart ..> UC_PlaceOrder       : <<include>>
-UC_ManageCart  ..> UC_ViewCart        : <<extend>>
-UC_ManageCart  ..> UC_AddCartItem     : <<include>>
-UC_ManageCart  ..> UC_UpdateCartItem  : <<include>>
-UC_ManageCart  ..> UC_RemoveCartItem  : <<include>>
-UC_AddCartItem ..> UC_ViewDinnerDetail : <<extend>>
-
-' Membership auto-discount는 Price Preview 단계에서 수행
-UC_PricePreview ..> UC_ApplyMembership : <<include>>
-
-' StaffOps: 상태변경/이벤트는 "View Orders" 문맥 확장
-UC_SubscribeSSE  ..> UC_ViewOrders : <<extend>>
-UC_AcceptOrder   ..> UC_ViewOrders : <<extend>>
-UC_MarkReady     ..> UC_ViewOrders : <<extend>>
-UC_Dispatch      ..> UC_ViewOrders : <<extend>>
-UC_MarkDelivered ..> UC_ViewOrders : <<extend>>
-UC_CancelOrder   ..> UC_ViewOrders : <<extend>>
-
-' Catalog 상세 열람은 브라우즈의 선택적 확장
-UC_ViewDinnerDetail ..> UC_BrowseMenu : <<extend>>
-
+Kitchen -- UC_OperateOrders
+Delivery -- UC_OperateOrders
 
 @enduml

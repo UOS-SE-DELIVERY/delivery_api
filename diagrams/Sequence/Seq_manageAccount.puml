@@ -1,0 +1,29 @@
+@startuml UC_ManageCustomerAccount_Sequence
+title Manage Customer Account - Abstract Sequence
+
+actor Customer
+
+participant "Web Client" as WebClient
+participant "API" as AccountsAPI
+
+== Register new account ==
+Customer -> WebClient: openRegisterPage()
+Customer -> WebClient: submitRegisterForm()
+WebClient -> AccountsAPI: POST /accounts/register
+AccountsAPI --> WebClient: registrationResult
+WebClient --> Customer: showRegistrationResult()
+
+== Login to account ==
+Customer -> WebClient: openLoginPage()
+Customer -> WebClient: submitLoginForm()
+WebClient -> AccountsAPI: POST /accounts/login
+AccountsAPI --> WebClient: authResult
+WebClient --> Customer: showLoginResult()
+
+== Logout from account ==
+Customer -> WebClient: clickLogout()
+WebClient -> AccountsAPI: POST /accounts/logout
+AccountsAPI --> WebClient: logoutResult
+WebClient --> Customer: showLoggedOut()
+
+@enduml

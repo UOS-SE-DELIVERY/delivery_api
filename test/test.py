@@ -33,7 +33,7 @@ ORDERS           = f"{BASE_URL}{API_PREFIX}/orders"
 STAFF            = f"{BASE_URL}{API_PREFIX}/staff"
 
 # Staff 로그인 정보(없으면 None)
-STAFF_CREDENTIALS = {"username": "boss", "password": "1234"}
+STAFF_CREDENTIALS = {"username": "owner", "password": "1234"}
 
 # 주문 목록 필터(SSE 등 파라미터로만 사용)
 STAFF_STATUS     = "pending"   # or None

@@ -195,7 +195,7 @@ def iter_order_notifications() -> Iterator[Dict[str, Any]]:
                     yield safe_obj
 
         except Exception as e:
-            log.warning("SSE loop error: %s (reconnecting...)", e)
+            log.warning("SSE loop error: %s (reconnecting....)", e)
         finally:
             if cur:
                 try:

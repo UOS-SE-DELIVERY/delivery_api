@@ -129,7 +129,7 @@ class RegisterView(APIView):
         OpenApiExample(
             name='응답(성공)',
             response_only=True,
-            value={"access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}
+            value={"access": "JWT 토큰"}
         ),
         OpenApiExample(
             name='응답(존재하지 않는 아이디)',

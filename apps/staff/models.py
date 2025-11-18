@@ -17,7 +17,7 @@ class Staff(models.Model):
         return False
 
     username = models.CharField(max_length=30, unique=True)
-    password = models.CharField(max_length=256)  # Django 해시 저장(pbkkdf2_...)
+    password = models.CharField(max_length=256)  # Django 해시 저장
     role = models.CharField(max_length=16, choices=StaffRole.choices, default=StaffRole.DELIVERY)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
