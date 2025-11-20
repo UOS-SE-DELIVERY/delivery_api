@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import List, Tuple, Dict
+from typing import List, Dict
 
 from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
-from rest_framework import generics
+from rest_framework import generics, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -38,26 +38,26 @@ from .services.pricing import (
 from drf_spectacular.utils import (
     extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse, inline_serializer
 )
-from rest_framework import serializers
-
 
 # ---------- 공통: 입력 정규화 ----------
 def _normalize_payloads(raw: dict) -> List[Dict]:
     """
-    세 가지 입력형을 모두 지원하여 '디너-아이템' 묶음 리스트로 정규화한다.
+    입력을 '디너-아이템' 묶음 리스트로 정규화한다.
     반환 구조: [{'dinner': validated_dsel, 'items': [validated_item, ...]}, ...]
-    우선순위: orders > dinners > dinner
+    지원 형식(이름 고정):
+      - dinners: [{ "dinner": {...}, "items": [...] }, ...]  ← 권장/유일한 다중 입력
+      - dinner : {...} (+ 상단 items는 해당 단일 디너에 귀속)
     """
     packs: List[Dict] = []
 
-    # A) orders: [{dinner:{...}, items:[...]}]
-    if raw.get("orders") is not None:
-        orders_raw = raw.get("orders") or []
-        if not orders_raw:
-            raise serializers.ValidationError({"orders": "must contain at least one element"})
-        for idx, o in enumerate(orders_raw):
+    # A) dinners: [{dinner:{...}, items:[...]}]
+    if raw.get("dinners") is not None:
+        dinners_raw = raw.get("dinners") or []
+        if not dinners_raw:
+            raise serializers.ValidationError({"dinners": "must contain at least one element"})
+        for idx, o in enumerate(dinners_raw):
             if "dinner" not in o:
-                raise serializers.ValidationError({f"orders[{idx}].dinner": "required"})
+                raise serializers.ValidationError({f"dinners[{idx}].dinner": "required"})
             ds = OrderDinnerSelectionSerializer(data=o["dinner"])
             ds.is_valid(raise_exception=True)
             items_norm = []
@@ -68,24 +68,7 @@ def _normalize_payloads(raw: dict) -> List[Dict]:
             packs.append({"dinner": ds.validated_data, "items": items_norm})
         return packs
 
-    # B) dinners: [ {...}, ... ] (+ 상단 items는 첫 디너에 귀속)
-    if raw.get("dinners") is not None:
-        dinners_raw = raw.get("dinners") or []
-        if not dinners_raw:
-            raise serializers.ValidationError({"dinners": "must contain at least one dinner"})
-        items_top = []
-        for it in raw.get("items", []):
-            iser = OrderItemSelectionSerializer(data=it)
-            iser.is_valid(raise_exception=True)
-            items_top.append(iser.validated_data)
-
-        for i, dsel in enumerate(dinners_raw):
-            ds = OrderDinnerSelectionSerializer(data=dsel)
-            ds.is_valid(raise_exception=True)
-            packs.append({"dinner": ds.validated_data, "items": (items_top if i == 0 else [])})
-        return packs
-
-    # C) dinner: {...} (+ 상단 items는 해당 단일 디너에 귀속)
+    # B) dinner: {...} (+ 상단 items는 해당 단일 디너에 귀속)
     if raw.get("dinner") is not None:
         ds = OrderDinnerSelectionSerializer(data=raw["dinner"])
         ds.is_valid(raise_exception=True)
@@ -97,7 +80,7 @@ def _normalize_payloads(raw: dict) -> List[Dict]:
         packs.append({"dinner": ds.validated_data, "items": items_norm})
         return packs
 
-    raise serializers.ValidationError({"dinner": "required (or provide 'dinners' / 'orders')"})
+    raise serializers.ValidationError({"dinners": "required (or provide 'dinner' for single input)"})
 
 
 # ---------- 주문 목록/생성 ----------
@@ -115,49 +98,44 @@ def _normalize_payloads(raw: dict) -> List[Dict]:
 @extend_schema(
     methods=['POST'],
     tags=['Orders'],
-    summary='주문 생성(단일/다중 디너 + 디너별 아이템)',
+    summary='주문 생성(다중 디너 + 디너별 아이템)',
     description=(
-        "- `orders` 배열 - 각 원소에 `dinner`(필수)와 그 디너 전용 `items`(선택)\n\n"
-        "각 디너의 `dinner_options`/`default_overrides`는 **디너별로 독립 처리**됩니다. "
-        "`default_overrides`는 기본 포함 아이템 수량 조정을 위한 필드입니다.(선택)"
-        "상단 공통 필드(`receiver_name`, `receiver_phone`, `delivery_address`, `coupons` 등)는 한 번만 전달하면 됩니다."
+        "입력은 아래 중 하나를 사용하세요.\n\n"
+        "1) **dinners 배열(권장)** — 각 원소가 `dinner` 선택과 해당 디너 전용 `items`를 포함\n"
+        "```json\n"
+        "{\n"
+        "  \"customer_id\": 1,\n"
+        "  \"order_source\": \"GUI\",\n"
+        "  \"fulfillment_type\": \"DELIVERY\",\n"
+        "  \"dinners\": [\n"
+        "    {\n"
+        "      \"dinner\": {\n"
+        "        \"code\": \"valentine\",\n"
+        "        \"quantity\": \"1\",\n"
+        "        \"style\": \"simple\",\n"
+        "        \"dinner_options\": [1, 2],\n"
+        "        \"default_overrides\": [{\"code\": \"wine\", \"qty\": \"0\"}]\n"
+        "      },\n"
+        "      \"items\": [\n"
+        "        {\"code\": \"steak\", \"qty\": \"2\", \"options\": [15, 17]},\n"
+        "        {\"code\": \"wine\",  \"qty\": \"3\"}\n"
+        "      ]\n"
+        "    },\n"
+        "    {\n"
+        "      \"dinner\": {\"code\": \"champagne_feast\", \"quantity\": \"1\", \"style\": \"simple\"},\n"
+        "      \"items\": [{\"code\": \"baguette\", \"qty\": \"1\"}]\n"
+        "    }\n"
+        "  ],\n"
+        "  \"receiver_name\": \"홍길동\",\n"
+        "  \"receiver_phone\": \"010-1111-2222\",\n"
+        "  \"delivery_address\": \"서울 중구 을지로 00\",\n"
+        "  \"coupons\": [{\"code\": \"WELCOME10\"}]\n"
+        "}\n"
+        "```\n\n"
+        "2) 단일 `dinner` + 상단 `items` (단건 생성용)"
     ),
-    request=OrderCreateRequestSerializer,  # 상단 공통 필드 검증용 (기존 호환)
+    request=OrderCreateRequestSerializer,  # 상단 공통 필드 검증용
     responses={201: OrderOutSerializer, 400: OpenApiResponse(description='유효하지 않은 입력')},
-    examples=[
-        OpenApiExample(
-            name='orders 배열(권장)',
-            value={
-                "customer_id": 1,
-                "order_source": "GUI",
-                "fulfillment_type": "DELIVERY",
-                "orders": [
-                    {
-                        "dinner": {
-                            "code": "valentine",
-                            "quantity": "1",
-                            "style": "simple",
-                            "dinner_options": [11, 12],
-                            "default_overrides": [{"code": "wine", "qty": "0"}]
-                        },
-                        "items": [
-                            {"code": "steak", "qty": "2", "options": [101, 102]},
-                            {"code": "wine",  "qty": "3"}
-                        ]
-                    },
-                    {
-                        "dinner": {"code": "champagne_feast", "quantity": "1", "style": "simple"},
-                        "items": [{"code": "caviar", "qty": "1"}]
-                    }
-                ],
-                "receiver_name": "홍길동",
-                "receiver_phone": "010-1111-2222",
-                "delivery_address": "서울 중구 을지로 00",
-                "coupons": [{"code": "WELCOME10"}]
-            },
-            request_only=True
-        ),
-    ]
 )
 class OrderListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = OrderOutSerializer
@@ -180,20 +158,17 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         raw = request.data
 
-        # 상단 공통 필드 검증
+        # 상단 공통 필드 검증용 임시 dinner 주입
         tmp_payload = dict(raw)
-        if "orders" in raw and "dinner" not in raw:
-            # orders가 있을 때도 상단 필드 검증을 위해 대표 dinner를 임시 주입
-            first = (raw.get("orders") or [{}])[0]
-            if not first or "dinner" not in first:
-                return Response({"detail": "orders must contain at least one element with 'dinner'"},
-                                status=400)
-            tmp_payload["dinner"] = first["dinner"]
-        elif "dinners" in raw and "dinner" not in raw:
+        if "dinners" in raw and "dinner" not in raw:
             dinners_raw = raw.get("dinners") or []
             if not dinners_raw:
-                return Response({"detail": "dinners must contain at least one dinner"}, status=400)
-            tmp_payload["dinner"] = dinners_raw[0]
+                return Response({"detail": "dinners must contain at least one element with 'dinner'"},
+                                status=400)
+            first = dinners_raw[0]
+            if "dinner" not in first:
+                return Response({"detail": "dinners[0].dinner is required"}, status=400)
+            tmp_payload["dinner"] = first["dinner"]
 
         s = OrderCreateRequestSerializer(data=tmp_payload)
         s.is_valid(raise_exception=True)
@@ -227,6 +202,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
 
         subtotal = 0
         all_dinner_option_ids: List[int] = []
+        item_lines_for_discount: List[Dict[str, str]] = []
 
         # 디너들 생성
         for pack in packs:
@@ -290,7 +266,11 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                         .filter(dinner_type=dinner)
                         .select_related("item")
                         .order_by("item__name"))
-            created_default_map = {}  # code -> (odi, default_qty)
+
+            created_default_map: dict[str, tuple[OrderDinnerItem, Decimal]] = {}
+            # 아이템 코드 → 생성된 OrderDinnerItem (디폴트/추가 통합 관리)
+            created_item_map: dict[str, OrderDinnerItem] = {}
+
             for di in defaults:
                 unit = 0 if getattr(di, "included_in_base", False) else di.item.base_price_cents
                 odi = OrderDinnerItem.objects.create(
@@ -300,6 +280,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                     is_default=True, change_type="unchanged"
                 )
                 created_default_map[di.item.code] = (odi, Decimal(di.default_qty))
+                created_item_map[di.item.code] = odi
 
             # default_overrides 적용
             for ov in (dsel.get("default_overrides") or []):
@@ -315,7 +296,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                 odi.change_type = "removed" if qty_override == 0 else ("decreased" if qty_override < orig else "unchanged")
                 odi.save(update_fields=["final_qty", "change_type"])
 
-            # (NEW) 이 디너 전용 items 처리
+            # 디너 전용 items — 단일 행 유지(이미 있으면 합산 및 옵션 스냅샷 추가)
             for it in pack.get("items", []):
                 item = MenuItem.objects.filter(code=it["code"], active=True).first()
                 if not item:
@@ -329,29 +310,37 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                 qty_item = Decimal(it["qty"])
                 line_sub = as_cents_int(Decimal(unit_item_cents) * qty_item)
                 subtotal += line_sub
+                item_lines_for_discount.append({"code": item.code, "qty": str(qty_item)})
 
-                odi, created = OrderDinnerItem.objects.get_or_create(
-                    order_dinner=od, item=item,
-                    defaults={
-                        "final_qty": qty_item,
-                        "unit_price_cents": unit_item_cents,
-                        "is_default": False, "change_type": "added"
-                    }
-                )
-                if not created:
-                    odi.final_qty = Decimal(odi.final_qty) + qty_item
-                    if odi.is_default and odi.change_type == "unchanged":
-                        odi.change_type = "added"
-                    odi.save(update_fields=["final_qty", "change_type"])
+                # 이미 존재하면(디폴트/이전 추가 불문) 해당 행 갱신, 없으면 생성
+                target = created_item_map.get(item.code)
+                if target:
+                    target.final_qty = Decimal(target.final_qty) + qty_item
+                    # 디폴트 행이었거나 이전 상태가 감소/제거였더라도 ‘추가’로 표기
+                    if target.change_type in ("unchanged", "decreased", "removed"):
+                        target.change_type = "added"
+                    # 옵션 포함 단가가 더 크면 단가 갱신(표시용 일관성)
+                    if (target.unit_price_cents or 0) < unit_item_cents:
+                        target.unit_price_cents = unit_item_cents
+                    target.save(update_fields=["final_qty", "change_type", "unit_price_cents"])
+                else:
+                    target = OrderDinnerItem.objects.create(
+                        order_dinner=od, item=item,
+                        final_qty=qty_item,
+                        unit_price_cents=unit_item_cents,
+                        is_default=False, change_type="added"
+                    )
+                    created_item_map[item.code] = target
 
                 for sopt in snaps:
                     OrderItemOption.objects.create(
-                        order_dinner_item=odi,
+                        order_dinner_item=target,
                         option_group_name=sopt["option_group_name"],
                         option_name=sopt["option_name"],
                         price_delta_cents=sopt["price_delta_cents"],
                         multiplier=None
                     )
+
 
         # 프로모션(대표: 첫 묶음 기준, 옵션 id는 전체 합산)
         rep = packs[0]["dinner"]
@@ -361,7 +350,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
             customer_id=data["customer_id"],
             channel=data.get("order_source") or "GUI",
             dinner_code=rep["code"],
-            item_lines=[],  # 필요시 라인 전달
+            item_lines=item_lines_for_discount,
             style_code=rep["style"],
             dinner_option_ids=all_dinner_option_ids,
             coupon_codes=coupon_codes,
@@ -400,49 +389,29 @@ class OrderDetailAPIView(generics.RetrieveAPIView):
                                       .prefetch_related("items__options", "options")))))
 
 
-# ---------- 가격 프리뷰(orders 지원) ----------
+# ---------- 가격 프리뷰(dinners 지원) ----------
 @extend_schema(
     tags=['Orders/Price'],
-    summary='가격 프리뷰(단일/다중/orders 모두 지원)',
+    summary='가격 프리뷰(단일/다중 dinners 지원)',
     description=(
-        "`dinner` / `dinners` / `orders` 입력을 모두 지원합니다. "
-        "`orders` 사용 시 각 디너별 아이템을 해당 디너에 귀속해 집계합니다. "
+        "`dinner` / `dinners` 입력을 지원합니다. \n"
+        "`dinners` 사용 시 각 원소는 `{ \"dinner\": {...}, \"items\": [...] }` 구조입니다. \n"
         "모든 multiplier는 addon(가산)으로 환산합니다."
     ),
     request=PricePreviewRequestSerializer,
     responses=PricePreviewResponseSerializer,
-    examples=[
-        OpenApiExample(
-            name='프리뷰_orders',
-            value={
-                "order_source": "GUI",
-                "orders": [
-                    {"dinner": {"code": "valentine", "quantity": "1", "style": "simple", "dinner_options": [11]},
-                     "items": [{"code": "steak", "qty": "2"}]},
-                    {"dinner": {"code": "champagne_feast", "quantity": "1", "style": "simple"}}
-                ],
-                "coupons": [{"code": "WELCOME10"}]
-            },
-            request_only=True
-        ),
-    ]
 )
 class OrderPricePreviewAPIView(APIView):
     def post(self, request):
         raw = request.data
-        # 상단 필드 최소 검증
+        # 상단 필드 최소 검증(dinners 사용 시 첫 dinner 주입)
         tmp_payload = dict(raw)
-        if "orders" in raw and "dinner" not in raw:
-            first = (raw.get("orders") or [{}])[0]
-            if not first or "dinner" not in first:
-                return Response({"detail": "orders must contain at least one element with 'dinner'"},
-                                status=400)
-            tmp_payload["dinner"] = first["dinner"]
-        elif "dinners" in raw and "dinner" not in raw:
+        if "dinners" in raw and "dinner" not in raw:
             dinners_raw = raw.get("dinners") or []
-            if not dinners_raw:
-                return Response({"detail": "dinners must contain at least one dinner"}, status=400)
-            tmp_payload["dinner"] = dinners_raw[0]
+            if not dinners_raw or "dinner" not in dinners_raw[0]:
+                return Response({"detail": "dinners must contain at least one element with 'dinner'"},
+                                status=400)
+            tmp_payload["dinner"] = dinners_raw[0]["dinner"]
 
         s = PricePreviewRequestSerializer(data=tmp_payload)
         s.is_valid(raise_exception=True)
@@ -634,8 +603,8 @@ class OrderActionAPIView(APIView):
     description=(
         "주문이 `pending`일 때만 수정 가능.\n\n"
         "- 헤더(배송/결제/메타)는 **넘겨준 필드만 부분 갱신**\n"
-        "- 라인(디너/아이템)은 본문에 `orders`(또는 레거시 `dinner`/`dinners`)가 오면 "
-        "**기존 라인을 전부 삭제하고 payload로 재빌드(전체 교체)**\n"
+        "- 라인(디너/아이템)은 본문에 **`dinners`**(권장) 또는 `dinner`가 오면 "
+        "**기존 라인을 전부 삭제하고 payload로 전체 교체**\n"
         "- 라인이 안 오면 라인은 그대로 두고 헤더/쿠폰만 갱신"
     ),
     request=inline_serializer(
@@ -658,15 +627,14 @@ class OrderActionAPIView(APIView):
                     fields={'code': serializers.CharField()}
                 ), required=False
             ),
-            # 라인 교체용(셋 중 하나만 오면 됨)
-            'orders': serializers.ListField(child=inline_serializer(
-                name='OrderPack',
+            # 라인 교체용(둘 중 하나)
+            'dinners': serializers.ListField(child=inline_serializer(
+                name='DinnerPack',
                 fields={
                     'dinner': OrderDinnerSelectionSerializer(),
-                    'items': serializers.ListField(child=OrderItemSelectionSerializer(), required=False)
+                    'items': serializers.ListField(child=OrderItemSelectionSerializer(), required=False),
                 }
             ), required=False),
-            'dinners': serializers.ListField(child=OrderDinnerSelectionSerializer(), required=False),
             'dinner': OrderDinnerSelectionSerializer(required=False),
             'items': serializers.ListField(child=OrderItemSelectionSerializer(), required=False),
         }
@@ -676,44 +644,13 @@ class OrderActionAPIView(APIView):
         400: OpenApiResponse(description='유효하지 않은 입력'),
         409: OpenApiResponse(description='pending이 아님 / 전이 불가'),
     },
-    examples=[
-        OpenApiExample(
-            name='헤더만 부분 갱신',
-            value={
-                "receiver_phone": "010-3333-4444",
-                "delivery_address": "서울 성동구 왕십리로 00",
-                "meta": {"note": "벨 누르지 마세요"}
-            },
-            request_only=True
-        ),
-        OpenApiExample(
-            name='라인 전체 교체(orders 사용, 다중 디너)',
-            value={
-                "orders": [
-                    {
-                        "dinner": {
-                            "code": "valentine", "quantity": "1", "style": "simple",
-                            "default_overrides": [{"code": "wine", "qty": "0"}]
-                        },
-                        "items": [{"code": "wine", "qty": "3"}]
-                    },
-                    {
-                        "dinner": {"code": "champagne_feast", "quantity": "1", "style": "grand"},
-                        "items": [{"code": "caviar", "qty": "1"}]
-                    }
-                ],
-                "coupons": [{"code": "WELCOME10"}]
-            },
-            request_only=True
-        ),
-    ]
 )
 class OrderUpdateAPIView(APIView):
     """
     PATCH /api/orders/{id}
     - pending에서만 허용
     - 헤더: 부분 갱신
-    - 라인: orders/dinners/dinner가 오면 기존 라인 삭제 후 재빌드
+    - 라인: dinners/dinner가 오면 기존 라인 삭제 후 재빌드
     """
     HEADER_FIELDS = [
         "receiver_name","receiver_phone","delivery_address",
@@ -725,7 +662,6 @@ class OrderUpdateAPIView(APIView):
         """body에 coupons가 오면 그것을, 없으면 기존 meta.discounts에서 coupon 코드 재추출"""
         if "coupons" in body:
             return [c["code"] for c in (body.get("coupons") or [])]
-        # 기존 메타에서 유지
         prev = (order.meta or {}).get("discounts") or []
         return [d.get("code") for d in prev if isinstance(d, dict) and d.get("type") == "coupon" and d.get("code")]
 
@@ -734,7 +670,6 @@ class OrderUpdateAPIView(APIView):
         기존 디너/아이템/옵션 스냅샷 전부 삭제하고 packs로 재구성.
         returns: (subtotal_cents, dinner_option_ids, rep_dinner_dict)
         """
-        # 모두 삭제(CASCADE 신뢰)
         order.dinners.all().delete()
 
         subtotal = 0
@@ -792,7 +727,10 @@ class OrderUpdateAPIView(APIView):
                         .filter(dinner_type=dinner)
                         .select_related("item")
                         .order_by("item__name"))
-            created_default_map = {}
+
+            created_default_map: dict[str, tuple[OrderDinnerItem, Decimal]] = {}
+            created_item_map: dict[str, OrderDinnerItem] = {}
+
             for di in defaults:
                 unit = 0 if getattr(di, "included_in_base", False) else di.item.base_price_cents
                 odi = OrderDinnerItem.objects.create(
@@ -802,8 +740,9 @@ class OrderUpdateAPIView(APIView):
                     is_default=True, change_type="unchanged"
                 )
                 created_default_map[di.item.code] = (odi, Decimal(di.default_qty))
+                created_item_map[di.item.code] = odi
 
-            # default_overrides 적용
+            # default_overrides
             for ov in (dsel.get("default_overrides") or []):
                 code = str(ov["code"]).strip()
                 qty_override = Decimal(str(ov["qty"]))
@@ -816,7 +755,7 @@ class OrderUpdateAPIView(APIView):
                 odi.change_type = "removed" if qty_override == 0 else ("decreased" if qty_override < orig else "unchanged")
                 odi.save(update_fields=["final_qty", "change_type"])
 
-            # 디너 전용 items
+            # 디너 전용 items — 단일 행 유지
             for it in (pack.get("items") or []):
                 item = MenuItem.objects.filter(code=it["code"], active=True).first()
                 if not item:
@@ -828,30 +767,33 @@ class OrderUpdateAPIView(APIView):
                 line_sub = as_cents_int(Decimal(unit_item_cents) * qty_item)
                 subtotal += line_sub
 
-                odi, created = OrderDinnerItem.objects.get_or_create(
-                    order_dinner=od, item=item,
-                    defaults={
-                        "final_qty": qty_item,
-                        "unit_price_cents": unit_item_cents,
-                        "is_default": False, "change_type": "added"
-                    }
-                )
-                if not created:
-                    odi.final_qty = Decimal(odi.final_qty) + qty_item
-                    if odi.is_default and odi.change_type == "unchanged":
-                        odi.change_type = "added"
-                    odi.save(update_fields=["final_qty", "change_type"])
+                target = created_item_map.get(item.code)
+                if target:
+                    target.final_qty = Decimal(target.final_qty) + qty_item
+                    if target.change_type in ("unchanged", "decreased", "removed"):
+                        target.change_type = "added"
+                    if (target.unit_price_cents or 0) < unit_item_cents:
+                        target.unit_price_cents = unit_item_cents
+                    target.save(update_fields=["final_qty", "change_type", "unit_price_cents"])
+                else:
+                    target = OrderDinnerItem.objects.create(
+                        order_dinner=od, item=item,
+                        final_qty=qty_item,
+                        unit_price_cents=unit_item_cents,
+                        is_default=False, change_type="added"
+                    )
+                    created_item_map[item.code] = target
 
                 for sopt in snaps:
                     OrderItemOption.objects.create(
-                        order_dinner_item=odi,
+                        order_dinner_item=target,
                         option_group_name=sopt["option_group_name"],
                         option_name=sopt["option_name"],
                         price_delta_cents=sopt["price_delta_cents"],
                         multiplier=None
                     )
 
-        # 대표 디너(쿠폰 평가용 컨텍스트): 첫 번째
+
         rep = packs[0]["dinner"] if packs else {}
         return int(subtotal), dinner_option_ids, rep
 
@@ -875,9 +817,9 @@ class OrderUpdateAPIView(APIView):
         dinner_option_ids = []
         rep = {}
 
-        if any(k in body for k in ("orders", "dinners", "dinner")):
+        if any(k in body for k in ("dinners", "dinner")):
             try:
-                packs = _normalize_payloads(body)  # 이미 파일 상단에 정의된 정규화 함수 재사용
+                packs = _normalize_payloads(body)
             except serializers.ValidationError as e:
                 return Response(e.detail, status=400)
             try:
@@ -887,7 +829,6 @@ class OrderUpdateAPIView(APIView):
         else:
             # 라인 유지 → 현재 subtotal 유지
             subtotal = int(order.subtotal_cents or 0)
-            # rep 컨텍스트가 필요하면 기존 첫 디너 기준으로 보정
             first = order.dinners.select_related("dinner_type", "style").first()
             if first:
                 rep = {"code": first.dinner_type.code, "style": first.style.code}
@@ -900,7 +841,7 @@ class OrderUpdateAPIView(APIView):
             customer_id=getattr(order.customer, "id", None),
             channel=order.order_source or "GUI",
             dinner_code=rep.get("code"),
-            item_lines=[],  # 필요 시 라인 요약을 전달하도록 확장 가능
+            item_lines=[],  # 필요 시 라인 요약 전달 확장 가능
             style_code=rep.get("style"),
             dinner_option_ids=dinner_option_ids,
             coupon_codes=coupon_codes,
@@ -910,14 +851,13 @@ class OrderUpdateAPIView(APIView):
         order.discount_cents = int(total_disc)
         order.total_cents = int(total_after)
 
-        # meta 병합: 넘어온 meta 우선 적용 + discounts 덮어쓰기
+        # meta 병합
         new_meta = body.get("meta") or {}
         if discounts:
             new_meta = {**(order.meta or {}), **new_meta, "discounts": discounts}
         elif new_meta:
             new_meta = {**(order.meta or {}), **new_meta}
         else:
-            # 아무것도 안 왔고 discounts도 없으면 기존 meta 유지
             new_meta = order.meta
         order.meta = new_meta or None
 
@@ -926,7 +866,6 @@ class OrderUpdateAPIView(APIView):
             "subtotal_cents", "discount_cents", "total_cents", "meta"
         ])
 
-        # 쿠폰 사용량 확정(간결성을 위해 항상 재확정)
         redeem_discounts(
             order=order,
             customer_id=getattr(order.customer, "id", None),
