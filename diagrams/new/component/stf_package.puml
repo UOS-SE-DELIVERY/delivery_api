@@ -1,0 +1,77 @@
+@startuml MrDinner_Staff_Component_Packaging
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam interfaceStyle uml2
+left to right direction
+
+artifact "staff/auth.py"        as STF_AUTH_FILE
+artifact "staff/eventbus.py"    as STF_EVT_FILE
+artifact "staff/models.py"      as STF_MODEL_FILE
+artifact "staff/permissions.py" as STF_PERM_FILE
+artifact "staff/serializers.py" as STF_SER_FILE
+artifact "staff/views.py"       as STF_VIEWS_FILE
+artifact "staff/urls.py"        as STF_URLS_FILE
+
+package "staff" {
+  component "StaffModels"      as STF_MODEL
+  component "StaffAuth"        as STF_AUTH
+  component "StaffPermissions" as STF_PERM
+  component "StaffSerializers" as STF_SER
+  component "StaffViews"       as STF_VIEWS
+  component "StaffUrls"        as STF_URLS
+  component "StaffEventBus"    as STF_EVT
+}
+
+component "Staff Web Console (FE)" as FE_Staff
+
+interface "IStaffModel"        as IStaffModel
+interface "IStaffHTTP"         as IStaffHTTP
+interface "IStaffSSE"          as IStaffSSE
+interface "IStaffPermissions"  as IStaffPermissions
+interface "IJwtCookieAuth"     as IJwtCookieAuth
+interface "IOrdersEventSource" as IOrdersEventSource
+
+interface "ICatalogModel"      as ICatalogModel
+interface "ICouponModel"       as ICouponModel
+interface "IMembershipModel"   as IMembershipModel
+interface "IOrderModel"        as IOrderModel
+
+STF_MODEL_FILE  ..> STF_MODEL
+STF_AUTH_FILE   ..> STF_AUTH
+STF_PERM_FILE   ..> STF_PERM
+STF_SER_FILE    ..> STF_SER
+STF_VIEWS_FILE  ..> STF_VIEWS
+STF_URLS_FILE   ..> STF_URLS
+STF_EVT_FILE    ..> STF_EVT
+
+STF_MODEL - IStaffModel
+STF_AUTH  - IJwtCookieAuth
+STF_PERM  - IStaffPermissions
+STF_VIEWS - IStaffHTTP
+STF_VIEWS - IStaffSSE
+STF_EVT   - IOrdersEventSource
+
+FE_Staff - IStaffHTTP
+FE_Staff - IStaffSSE
+
+STF_AUTH  - IStaffModel
+STF_SER   - IStaffModel
+STF_VIEWS - IStaffModel
+STF_PERM  - IStaffModel
+
+STF_VIEWS ..> STF_AUTH
+STF_VIEWS ..> STF_PERM
+STF_VIEWS ..> STF_SER
+STF_VIEWS ..> STF_EVT
+STF_URLS ..> STF_VIEWS
+
+STF_SER   - ICouponModel
+STF_SER   - IMembershipModel
+STF_SER   - IOrderModel
+
+STF_VIEWS - ICatalogModel
+STF_VIEWS - ICouponModel
+STF_VIEWS - IMembershipModel
+STF_VIEWS - IOrderModel
+
+@enduml

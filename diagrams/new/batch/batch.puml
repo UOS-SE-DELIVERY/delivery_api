@@ -1,0 +1,34 @@
+@startuml MrDinner_Deployment
+skinparam shadowing false
+skinparam componentStyle uml2
+
+component "MrDinnerAPI\n(from Component View)"        as COMP_API
+component "CustomerWebClient\n(from Component View)"  as COMP_FE_C
+component "StaffWebConsole\n(from Component View)"    as COMP_FE_S
+component "PostgreSQL\n(from Component View)"         as COMP_DB
+
+artifact "mr_dinner_api\n(Docker image)"  as ART_API
+artifact "customer_fe\n(build bundle)"    as ART_FE_C
+artifact "staff_fe\n(build bundle)"       as ART_FE_S
+artifact "postgresql\n(Docker image)"     as ART_DB
+
+node "ApplicationServer" as NODE_APP
+node "CustomerDevice"    as NODE_CUST
+node "StaffDevice"       as NODE_STAFF
+node "DatabaseServer"    as NODE_DB
+
+COMP_API  ..> ART_API  : <<Implementation>>
+COMP_FE_C ..> ART_FE_C : <<Implementation>>
+COMP_FE_S ..> ART_FE_S : <<Implementation>>
+COMP_DB   ..> ART_DB   : <<Implementation>>
+
+COMP_API  ..> NODE_APP  : <<deploy>>
+COMP_FE_C ..> NODE_CUST : <<deploy>>
+COMP_FE_S ..> NODE_STAFF: <<deploy>>
+COMP_DB   ..> NODE_DB   : <<deploy>>
+
+NODE_CUST -- NODE_APP
+NODE_STAFF -- NODE_APP
+NODE_APP   -- NODE_DB
+
+@enduml

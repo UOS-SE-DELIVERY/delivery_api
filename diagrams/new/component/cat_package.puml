@@ -1,0 +1,50 @@
+@startuml MrDinner_Catalog_Component_Packaging
+skinparam shadowing false
+skinparam componentStyle uml2
+left to right direction
+
+artifact "catalog/conf.py"        as CAT_CONF_FILE
+artifact "catalog/models.py"      as CAT_MODEL_FILE
+artifact "catalog/selectors.py"   as CAT_SEL_FILE
+artifact "catalog/serializers.py" as CAT_SER_FILE
+artifact "catalog/views.py"       as CAT_VIEWS_FILE
+artifact "catalog/urls.py"        as CAT_URLS_FILE
+
+package "catalog" {
+  component "CatalogConf"        as CAT_CONF
+  component "CatalogModels"      as CAT_MODEL
+  component "CatalogSelectors"   as CAT_SEL
+  component "CatalogSerializers" as CAT_SER
+  component "CatalogViews"       as CAT_VIEWS
+  component "CatalogUrls"        as CAT_URLS
+}
+
+component "Customer Web Client (FE)" as FE_Customer
+
+interface "ICatalogModel"     as ICatalogModel
+interface "ICatalogSelectors" as ICatalogSelectors
+interface "ICatalogHTTP"      as ICatalogHTTP
+
+CAT_CONF_FILE  ..> CAT_CONF
+CAT_MODEL_FILE ..> CAT_MODEL
+CAT_SEL_FILE   ..> CAT_SEL
+CAT_SER_FILE   ..> CAT_SER
+CAT_VIEWS_FILE ..> CAT_VIEWS
+CAT_URLS_FILE  ..> CAT_URLS
+
+CAT_MODEL - ICatalogModel
+CAT_SEL   - ICatalogSelectors
+CAT_VIEWS - ICatalogHTTP
+
+FE_Customer - ICatalogHTTP
+
+CAT_SER - ICatalogModel
+CAT_SEL ..> CAT_CONF
+CAT_SEL - ICatalogModel
+CAT_VIEWS ..> CAT_CONF
+CAT_VIEWS - ICatalogModel
+CAT_VIEWS ..> CAT_SEL
+CAT_VIEWS ..> CAT_SER
+CAT_URLS ..> CAT_VIEWS
+
+@enduml

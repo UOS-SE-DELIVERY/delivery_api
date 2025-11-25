@@ -1,0 +1,56 @@
+@startuml MrDinner_Orders_Component_Packaging
+skinparam shadowing false
+skinparam componentStyle uml2
+left to right direction
+
+artifact "orders/models.py"           as ORD_MODEL_FILE
+artifact "orders/serializers.py"      as ORD_SER_FILE
+artifact "orders/views.py"            as ORD_VIEWS_FILE
+artifact "orders/urls.py"             as ORD_URLS_FILE
+artifact "orders/services/pricing.py" as ORD_PRICING_FILE
+
+package "orders" {
+  component "OrdersModels"      as ORD_MODEL
+  component "OrdersSerializers" as ORD_SER
+  component "OrdersViews"       as ORD_VIEWS
+  component "OrdersUrls"        as ORD_URLS
+
+  package "services" {
+    component "OrdersPricing"   as ORD_PRICING
+  }
+}
+
+component "Customer Web Client (FE)" as FE_Customer
+
+interface "IOrderModel"     as IOrderModel
+interface "IOrdersHTTP"     as IOrdersHTTP
+interface "IOrderPricing"   as IOrderPricing
+interface "ICustomerEntity" as ICustomerEntity
+interface "ICatalogModel"   as ICatalogModel
+interface "IPromotionService" as IPromotionService
+
+ORD_MODEL_FILE   ..> ORD_MODEL
+ORD_SER_FILE     ..> ORD_SER
+ORD_VIEWS_FILE   ..> ORD_VIEWS
+ORD_URLS_FILE    ..> ORD_URLS
+ORD_PRICING_FILE ..> ORD_PRICING
+
+ORD_MODEL   - IOrderModel
+ORD_VIEWS   - IOrdersHTTP
+ORD_PRICING - IOrderPricing
+
+FE_Customer - IOrdersHTTP
+
+ORD_SER  - IOrderModel
+ORD_VIEWS - IOrderModel
+ORD_VIEWS ..> ORD_SER
+ORD_VIEWS - IOrderPricing
+
+ORD_URLS ..> ORD_VIEWS
+
+ORD_MODEL   - ICustomerEntity
+ORD_MODEL   - ICatalogModel
+ORD_PRICING - ICatalogModel
+ORD_VIEWS   - IPromotionService
+
+@enduml

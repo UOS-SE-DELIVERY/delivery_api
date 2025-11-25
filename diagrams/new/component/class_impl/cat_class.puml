@@ -1,0 +1,164 @@
+@startuml Catalog_ClassRealization
+allow_mixing
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "apps.catalog.models" {
+
+  class "MenuCategory\n(from Catalog)" as MenuCategory <<entity>> {
+    +category_id: BigAutoField
+    +parent: MenuCategory
+    +name: TextField
+    +slug: SlugField
+    +rank: IntegerField
+    +active: BooleanField
+  }
+
+  class "ItemTag\n(from Catalog)" as ItemTag <<entity>> {
+    +tag_id: BigAutoField
+    +name: CharField
+  }
+
+  class "MenuItem\n(from Catalog)" as MenuItem <<entity>> {
+    +item_id: BigAutoField
+    +code: CharField
+    +name: TextField
+    +description: TextField
+    +category: MenuCategory
+    +unit: CharField
+    +base_price_cents: PositiveIntegerField
+    +active: BooleanField
+    +attrs: JSONField
+  }
+
+  class "ItemTagMap\n(from Catalog)" as ItemTagMap <<entity>> {
+    +item: MenuItem
+    +tag: ItemTag
+  }
+
+  enum OptionSelectMode {
+    SINGLE
+    MULTI
+  }
+
+  enum PriceMode {
+    ADDON
+    MULTIPLIER
+  }
+
+  class "ItemOptionGroup\n(from Catalog)" as ItemOptionGroup <<entity>> {
+    +group_id: BigAutoField
+    +item: MenuItem
+    +name: TextField
+    +select_mode: CharField
+    +min_select: PositiveIntegerField
+    +max_select: IntegerField
+    +is_required: BooleanField
+    +is_variant: BooleanField
+    +price_mode: CharField
+    +rank: IntegerField
+  }
+
+  class "ItemOption\n(from Catalog)" as ItemOption <<entity>> {
+    +option_id: BigAutoField
+    +group: ItemOptionGroup
+    +name: TextField
+    +price_delta_cents: PositiveIntegerField
+    +multiplier: DecimalField
+    +is_default: BooleanField
+    +rank: IntegerField
+  }
+
+  class "ServingStyle\n(from Catalog)" as ServingStyle <<entity>> {
+    +style_id: BigAutoField
+    +code: CharField
+    +name: TextField
+    +price_mode: CharField
+    +price_value: DecimalField
+    +notes: TextField
+  }
+
+  class "DinnerType\n(from Catalog)" as DinnerType <<entity>> {
+    +dinner_type_id: BigAutoField
+    +code: CharField
+    +name: TextField
+    +description: TextField
+    +base_price_cents: PositiveIntegerField
+    +active: BooleanField
+  }
+
+  class "DinnerTypeDefaultItem\n(from Catalog)" as DinnerTypeDefaultItem <<entity>> {
+    +dinner_type: DinnerType
+    +item: MenuItem
+    +default_qty: DecimalField
+    +included_in_base: BooleanField
+    +notes: TextField
+  }
+
+  class "DinnerStyleAllowed\n(from Catalog)" as DinnerStyleAllowed <<entity>> {
+    +dinner_type: DinnerType
+    +style: ServingStyle
+  }
+
+  class "DinnerOptionGroup\n(from Catalog)" as DinnerOptionGroup <<entity>> {
+    +group_id: BigAutoField
+    +dinner_type: DinnerType
+    +name: TextField
+    +select_mode: CharField
+    +min_select: PositiveIntegerField
+    +max_select: IntegerField
+    +is_required: BooleanField
+    +price_mode: CharField
+    +rank: IntegerField
+  }
+
+  class "DinnerOption\n(from Catalog)" as DinnerOption <<entity>> {
+    +option_id: BigAutoField
+    +group: DinnerOptionGroup
+    +item: MenuItem
+    +name: TextField
+    +price_delta_cents: PositiveIntegerField
+    +multiplier: DecimalField
+    +is_default: BooleanField
+    +rank: IntegerField
+  }
+
+  class "ItemAvailability\n(from Catalog)" as ItemAvailability <<entity>> {
+    +item: MenuItem
+    +dow: IntegerField
+    +start_time: TimeField
+    +end_time: TimeField
+    +start_date: DateField
+    +end_date: DateField
+  }
+}
+
+component "Catalog\n(from Component View)" as CatalogComponent
+
+CatalogComponent ..> MenuCategory
+CatalogComponent ..> MenuItem
+CatalogComponent ..> ItemOptionGroup
+CatalogComponent ..> ItemOption
+CatalogComponent ..> ServingStyle
+CatalogComponent ..> DinnerType
+CatalogComponent ..> DinnerOptionGroup
+CatalogComponent ..> DinnerOption
+
+MenuCategory "1" <-- "0..*" MenuCategory : parent/children
+MenuCategory "1" <-- "0..*" MenuItem : category
+MenuItem "1" -- "0..*" ItemOptionGroup : option_groups
+ItemOptionGroup "1" -- "0..*" ItemOption : options
+MenuItem "1" -- "0..*" ItemAvailability : availability
+MenuItem "1" -- "0..*" ItemTagMap : items
+ItemTag "1" -- "0..*" ItemTagMap : tags
+DinnerType "1" -- "0..*" DinnerTypeDefaultItem : default_items
+MenuItem "1" -- "0..*" DinnerTypeDefaultItem : items
+DinnerType "1" -- "0..*" DinnerStyleAllowed : styles
+ServingStyle "1" -- "0..*" DinnerStyleAllowed : dinners
+DinnerType "1" -- "0..*" DinnerOptionGroup : option_groups
+DinnerOptionGroup "1" -- "0..*" DinnerOption : options
+MenuItem "1" -- "0..*" DinnerOption : item_options
+
+@enduml

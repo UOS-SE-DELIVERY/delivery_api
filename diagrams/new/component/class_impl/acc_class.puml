@@ -1,0 +1,106 @@
+@startuml Accounts_ClassRealization
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+allow_mixing
+
+package "apps.accounts" {
+
+  class AccountsConfig {
+    +default_auto_field: str
+    +name: str
+  }
+
+  class Customer <<entity>> {
+    +customer_id: BigAutoField
+    +username: TextField
+    +password: CharField
+    +real_name: TextField
+    +phone: TextField
+    +addresses: JSONField
+    +profile_consent: BooleanField
+    +profile_consent_at: DateTimeField
+    +loyalty_tier: TextField
+    +created_at: DateTimeField
+    +is_authenticated: bool
+    +is_anonymous: bool
+  }
+
+  enum LoyaltyTier {
+    NONE
+    SILVER
+    GOLD
+  }
+}
+
+package "apps.accounts.auth" {
+  class JWTAuthentication {
+    +authenticate(request)
+  }
+}
+
+package "apps.accounts.serializers" {
+  class RegisterSerializer
+  class LoginSerializer
+  class MeSerializer
+  class ProfileUpdateSerializer
+  class UsernameUpdateSerializer
+  class PasswordChangeSerializer
+  class AddressSerializer
+}
+
+package "apps.accounts.views" {
+  class RegisterView {
+    +post(request)
+  }
+  class LoginView {
+    +post(request)
+  }
+  class LogoutView {
+    +post(request)
+  }
+  class MeViewSet {
+    +retrieve(request)
+    +partial_update(request)
+    +addresses(request)
+    +modify_address(request, idx)
+    +change_password(request)
+    +update_username(request)
+  }
+}
+
+Customer "1" o-- "*" AddressSerializer
+RegisterSerializer --> Customer
+LoginSerializer --> Customer
+MeSerializer --> Customer
+ProfileUpdateSerializer --> Customer
+UsernameUpdateSerializer --> Customer
+PasswordChangeSerializer --> Customer
+AddressSerializer --> Customer
+MeViewSet --> Customer
+
+component "AccountsModels (from Component View)" as AccountsModels
+component "AccountsAuth (from Component View)" as AccountsAuth
+component "AccountsSerializers (from Component View)" as AccountsSerializers
+component "AccountsViews (from Component View)" as AccountsViews
+
+AccountsModels ..> Customer : <<Implementation>>
+AccountsModels ..> LoyaltyTier : <<Implementation>>
+
+AccountsAuth ..> JWTAuthentication : <<Implementation>>
+
+AccountsSerializers ..> RegisterSerializer : <<Implementation>>
+AccountsSerializers ..> LoginSerializer : <<Implementation>>
+AccountsSerializers ..> MeSerializer : <<Implementation>>
+AccountsSerializers ..> ProfileUpdateSerializer : <<Implementation>>
+AccountsSerializers ..> UsernameUpdateSerializer : <<Implementation>>
+AccountsSerializers ..> PasswordChangeSerializer : <<Implementation>>
+AccountsSerializers ..> AddressSerializer : <<Implementation>>
+
+AccountsViews ..> RegisterView : <<Implementation>>
+AccountsViews ..> LoginView : <<Implementation>>
+AccountsViews ..> LogoutView : <<Implementation>>
+AccountsViews ..> MeViewSet : <<Implementation>>
+
+@enduml

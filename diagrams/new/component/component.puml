@@ -1,0 +1,57 @@
+@startuml MrDinner_Component_Overall
+skinparam shadowing false
+skinparam defaultFontName Pretendard
+skinparam dpi 150
+
+' ===== Layers (all as folder-shaped packages) =====
+package "Client Layer" {
+  package "Customer Web Client (FE)" as FE_Customer
+  package "Staff Web Console (FE)"  as FE_Staff
+}
+
+package "API Layer (Django/DRF Service)" as API {
+  package "accounts" as ACC {
+    package "Auth API\n(/api/auth/*)" as ACC_API
+  }
+
+  package "catalog" as CAT {
+    package "Catalog API\n(/api/catalog/*)" as CAT_API
+  }
+
+  package "orders" as ORD {
+    package "Orders API\n(/api/orders, /api/orders/{id})" as ORD_API
+    package "Pricing Service" as ORD_PRICING
+  }
+
+  package "promotion" as PRO {
+    package "Promotion Service" as PRO_SVC
+  }
+
+  package "staff" as STF {
+    package "Staff API\n(/api/staff/*)" as STF_API
+    package "SSE EventBus\n(/api/staff/sse/orders)\npsycopg LISTEN 'orders_events'" as STF_SSE
+  }
+}
+
+package "Persistence Layer" as PERSIST {
+  database "PostgreSQL" as PG
+}
+
+' ===== Dependencies (dashed = uses/calls) =====
+FE_Customer ..> ACC_API
+FE_Customer ..> CAT_API
+FE_Customer ..> ORD_API
+
+FE_Staff ..> STF_API
+FE_Staff ..> STF_SSE
+
+ORD_API ..> ORD_PRICING
+ORD_API ..> PRO_SVC
+
+ACC_API ..> PG
+CAT_API ..> PG
+ORD_API ..> PG
+STF_API ..> PG
+STF_SSE ..> PG
+
+@enduml

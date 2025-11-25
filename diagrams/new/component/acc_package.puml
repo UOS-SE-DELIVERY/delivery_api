@@ -1,0 +1,54 @@
+@startuml MrDinner_Accounts_Component_Packaging
+skinparam shadowing false
+skinparam componentStyle uml2
+left to right direction
+
+' ===== Artifacts (파일) =====
+artifact "accounts/models.py"      as ACC_MODEL_FILE
+artifact "accounts/auth.py"        as ACC_AUTH_FILE
+artifact "accounts/serializers.py" as ACC_SER_FILE
+artifact "accounts/views.py"       as ACC_VIEWS_FILE
+artifact "accounts/urls.py"        as ACC_URLS_FILE
+
+' ===== Accounts 패키지 내부 컴포넌트 =====
+package "accounts" {
+  component "AccountsModels"      as ACC_MODEL   
+  component "AccountsAuth"        as ACC_AUTH     
+  component "AccountsSerializers" as ACC_SER        
+  component "AccountsViews"       as ACC_VIEWS     
+  component "AccountsUrls"        as ACC_URLS  
+}
+
+' 외부에서 보는 FE 컴포넌트
+component "Customer Web Client (FE)" as FE_Customer
+
+' ===== Interfaces =====
+interface "ICustomerEntity" as ICustomerEntity     
+interface "IAccountsHTTP"   as IAccountsHTTP       
+interface "IJwtCookieAuth"  as IJwtCookieAuth     
+
+' ===== Artifact → Component 매핑 =====
+ACC_MODEL_FILE  ..> ACC_MODEL
+ACC_AUTH_FILE   ..> ACC_AUTH
+ACC_SER_FILE    ..> ACC_SER
+ACC_VIEWS_FILE  ..> ACC_VIEWS
+ACC_URLS_FILE   ..> ACC_URLS
+
+' ===== Provided Interfaces =====
+ACC_MODEL - ICustomerEntity
+ACC_VIEWS - IAccountsHTTP
+ACC_AUTH  - IJwtCookieAuth
+
+' ===== Consumers / Dependencies =====
+FE_Customer - IAccountsHTTP
+
+ACC_VIEWS ..> ACC_SER
+ACC_VIEWS ..> ACC_AUTH
+ACC_VIEWS -  ICustomerEntity
+
+ACC_SER   -  ICustomerEntity
+ACC_AUTH  -  ICustomerEntity
+
+ACC_URLS  ..> ACC_VIEWS
+
+@enduml

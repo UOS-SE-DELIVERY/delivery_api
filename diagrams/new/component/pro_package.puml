@@ -1,0 +1,32 @@
+@startuml MrDinner_Promotion_Component_Packaging
+skinparam shadowing false
+skinparam componentStyle uml2
+left to right direction
+
+artifact "promotion/models.py"   as PRO_MODEL_FILE
+artifact "promotion/services.py" as PRO_SVC_FILE
+
+package "promotion" {
+  component "PromotionModels"   as PRO_MODEL
+  component "PromotionServices" as PRO_SVC
+}
+
+interface "ICouponModel"      as ICouponModel
+interface "IMembershipModel"  as IMembershipModel
+interface "IPromotionService" as IPromotionService
+interface "ICustomerEntity"   as ICustomerEntity
+interface "IOrderModel"       as IOrderModel
+
+PRO_MODEL_FILE ..> PRO_MODEL
+PRO_SVC_FILE   ..> PRO_SVC
+
+PRO_MODEL - ICouponModel
+PRO_MODEL - IMembershipModel
+PRO_SVC   - IPromotionService
+
+PRO_SVC  ..> PRO_MODEL
+
+PRO_MODEL - ICustomerEntity
+PRO_MODEL - IOrderModel
+
+@enduml

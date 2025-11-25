@@ -1,0 +1,129 @@
+@startuml Orders_ClassRealization
+allow_mixing
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+component "Orders\n(from Component View)" as OrdersComponent
+
+package "apps.orders" {
+  class "Order\n(from Orders)" as Order <<entity>> {
+    +id: BigAutoField
+    +customer: FK<Customer>
+    +ordered_at: DateTimeField
+    +status: CharField
+    +order_source: CharField
+    +receiver_name: TextField
+    +receiver_phone: TextField
+    +delivery_address: TextField
+    +geo_lat: Decimal
+    +geo_lng: Decimal
+    +place_label: TextField
+    +address_meta: JSONField
+    +payment_token: TextField
+    +card_last4: CharField
+    +subtotal_cents: PositiveIntegerField
+    +discount_cents: PositiveIntegerField
+    +total_cents: PositiveIntegerField
+    +meta: JSONField
+    +accept()
+    +mark_ready()
+    +out_for_delivery()
+    +deliver()
+    +cancel()
+  }
+
+  class "OrderDinner\n(from Orders)" as OrderDinner <<entity>> {
+    +id: BigAutoField
+    +order: FK<Order>
+    +dinner_type: FK<DinnerType>
+    +style: FK<ServingStyle>
+    +person_label: TextField
+    +quantity: Decimal
+    +base_price_cents: PositiveIntegerField
+    +style_adjust_cents: PositiveIntegerField
+    +notes: TextField
+  }
+
+  class "OrderDinnerItem\n(from Orders)" as OrderDinnerItem <<entity>> {
+    +id: BigAutoField
+    +order_dinner: FK<OrderDinner>
+    +item: FK<MenuItem>
+    +final_qty: Decimal
+    +unit_price_cents: PositiveIntegerField
+    +is_default: BooleanField
+    +change_type: CharField
+  }
+
+  class "OrderItemOption\n(from Orders)" as OrderItemOption <<entity>> {
+    +id: BigAutoField
+    +order_dinner_item: FK<OrderDinnerItem>
+    +option_group_name: TextField
+    +option_name: TextField
+    +price_delta_cents: PositiveIntegerField
+    +multiplier: Decimal
+  }
+
+  class "OrderDinnerOption\n(from Orders)" as OrderDinnerOption <<entity>> {
+    +id: BigAutoField
+    +order_dinner: FK<OrderDinner>
+    +option_group_name: TextField
+    +option_name: TextField
+    +price_delta_cents: PositiveIntegerField
+    +multiplier: Decimal
+  }
+
+  enum OrderStatus {
+    PENDING
+    PREP
+    OUT
+    DELIVERED
+    CANCELED
+  }
+
+  enum OrderSource {
+    GUI
+    VOICE
+  }
+
+  enum ChangeType {
+    UNCHANGED
+    ADDED
+    REMOVED
+    INCREASED
+    DECREASED
+  }
+}
+
+package "apps.accounts (from Accounts)" {
+  class Customer <<entity>>
+}
+
+package "apps.catalog (from Catalog)" {
+  class DinnerType <<entity>>
+  class ServingStyle <<entity>>
+  class MenuItem <<entity>>
+}
+
+Order "1" o-- "1..*" OrderDinner : consists of
+OrderDinner "1" o-- "1..*" OrderDinnerItem : has
+OrderDinnerItem "1" o-- "0..*" OrderItemOption : options
+OrderDinner "1" o-- "0..*" OrderDinnerOption : options
+
+Order --> OrderStatus
+Order --> OrderSource
+OrderDinnerItem --> ChangeType
+
+Order --> Customer
+OrderDinner --> DinnerType
+OrderDinner --> ServingStyle
+OrderDinnerItem --> MenuItem
+
+OrdersComponent ..> Order
+OrdersComponent ..> OrderDinner
+OrdersComponent ..> OrderDinnerItem
+OrdersComponent ..> OrderItemOption
+OrdersComponent ..> OrderDinnerOption
+
+@enduml

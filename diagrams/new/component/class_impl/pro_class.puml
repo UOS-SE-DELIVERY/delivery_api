@@ -1,0 +1,86 @@
+@startuml Promotion_ClassRealization
+allow_mixing
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "apps.promotion.models" {
+
+  class Coupon <<entity>> {
+    +id: BigAutoField
+    +code: CharField
+    +name: CharField
+    +label: CharField
+    +active: BooleanField
+    +kind: CharField
+    +value: DecimalField
+    +valid_from: DateTimeField
+    +valid_until: DateTimeField
+    +min_subtotal_cents: IntegerField
+    +max_discount_cents: IntegerField
+    +stackable_with_membership: BooleanField
+    +stackable_with_coupons: BooleanField
+    +channel: CharField
+    +max_redemptions_global: IntegerField
+    +max_redemptions_per_user: IntegerField
+    +notes: TextField
+    +created_at: DateTimeField
+    +updated_at: DateTimeField
+  }
+
+  class CouponRedemption <<entity>> {
+    +id: BigAutoField
+    +coupon: ForeignKey
+    +customer: ForeignKey
+    +order: ForeignKey
+    +amount_cents: IntegerField
+    +channel: CharField
+    +redeemed_at: DateTimeField
+  }
+
+  class Membership <<entity>> {
+    +id: BigAutoField
+    +customer: OneToOneField
+    +label: CharField
+    +percent_off: DecimalField
+    +active: BooleanField
+    +valid_from: DateTimeField
+    +valid_until: DateTimeField
+  }
+}
+
+package "apps.promotion.services" {
+  class evaluate_discounts <<function>>
+  class redeem_discounts <<function>>
+}
+
+package "apps.accounts (from Accounts)" {
+  class Customer <<entity>>
+}
+
+package "apps.orders (from Orders)" {
+  class Order <<entity>>
+}
+
+Coupon "1" -- "0..*" CouponRedemption : redemptions
+Customer "1" -- "0..*" CouponRedemption : coupon_redemptions
+Order "1" -- "0..*" CouponRedemption : coupon_redemptions
+
+Customer "1" -- "0..1" Membership : membership
+
+evaluate_discounts ..> Coupon
+evaluate_discounts ..> Membership
+redeem_discounts ..> Coupon
+redeem_discounts ..> CouponRedemption
+redeem_discounts ..> Membership
+
+component "Promotion (from Component View)" as PromotionComponent
+
+PromotionComponent ..> Coupon           : <<Implementation>>
+PromotionComponent ..> CouponRedemption : <<Implementation>>
+PromotionComponent ..> Membership       : <<Implementation>>
+PromotionComponent ..> evaluate_discounts : <<Implementation>>
+PromotionComponent ..> redeem_discounts   : <<Implementation>>
+
+@enduml

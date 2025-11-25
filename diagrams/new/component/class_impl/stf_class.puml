@@ -1,0 +1,115 @@
+@startuml Staff_ClassRealization
+allow_mixing
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "apps.staff.models" {
+
+  enum StaffRole {
+    OWNER
+    MANAGER
+    KITCHEN
+    DELIVERY
+  }
+
+  class Staff <<entity>> {
+    +id: BigAutoField
+    +code: CharField
+    +name: CharField
+    +role: CharField
+    +active: BooleanField
+    +created_at: DateTimeField
+  }
+
+  class StaffShift <<entity>> {
+    +id: BigAutoField
+    +staff: ForeignKey
+    +start_at: DateTimeField
+    +end_at: DateTimeField
+    +created_at: DateTimeField
+  }
+
+  class StaffDailyHours <<entity>> {
+    +id: BigAutoField
+    +staff: ForeignKey
+    +work_date: DateField
+    +work_minutes: IntegerField
+    +updated_at: DateTimeField
+  }
+}
+
+package "apps.staff.permissions" {
+  class IsOwnerOrManager {
+    +has_permission(request, view)
+  }
+}
+
+package "apps.staff.auth" {
+  class StaffJWTAuthentication {
+    +authenticate(request)
+  }
+}
+
+package "apps.staff.serializers" {
+  class StaffSerializer
+  class StaffShiftSerializer
+  class StaffDailyHoursSerializer
+}
+
+package "apps.staff.views" {
+  class StaffMeViewSet
+  class StaffShiftViewSet
+  class StaffReportViewSet
+}
+
+package "apps.staff.eventbus" {
+  class OrdersEventBus {
+    +stream_orders_events()
+  }
+}
+
+Staff "1" -- "0..*" StaffShift : shifts
+Staff "1" -- "0..*" StaffDailyHours : daily_hours
+
+Staff ".." --> StaffRole : role
+
+IsOwnerOrManager ..> StaffRole
+IsOwnerOrManager ..> Staff
+
+StaffSerializer --> Staff
+StaffShiftSerializer --> StaffShift
+StaffDailyHoursSerializer --> StaffDailyHours
+
+StaffMeViewSet ..> StaffSerializer
+StaffShiftViewSet ..> StaffShiftSerializer
+StaffReportViewSet ..> StaffDailyHoursSerializer
+StaffShiftViewSet ..> StaffJWTAuthentication
+StaffMeViewSet ..> StaffJWTAuthentication
+
+StaffShiftViewSet ..> OrdersEventBus
+
+component "StaffModels (from Component View)" as StaffModels
+component "StaffPermissions (from Component View)" as StaffPermissions
+component "StaffAuth (from Component View)" as StaffAuth
+component "StaffSerializers (from Component View)" as StaffSerializers
+component "StaffViews (from Component View)" as StaffViews
+component "StaffEventBus (from Component View)" as StaffEventBus
+
+StaffModels ..> Staff              : <<Implementation>>
+StaffModels ..> StaffShift         : <<Implementation>>
+StaffModels ..> StaffDailyHours    : <<Implementation>>
+StaffModels ..> StaffRole          : <<Implementation>>
+
+StaffPermissions ..> IsOwnerOrManager       : <<Implementation>>
+StaffAuth        ..> StaffJWTAuthentication : <<Implementation>>
+StaffSerializers ..> StaffSerializer        : <<Implementation>>
+StaffSerializers ..> StaffShiftSerializer   : <<Implementation>>
+StaffSerializers ..> StaffDailyHoursSerializer : <<Implementation>>
+StaffViews       ..> StaffMeViewSet         : <<Implementation>>
+StaffViews       ..> StaffShiftViewSet      : <<Implementation>>
+StaffViews       ..> StaffReportViewSet     : <<Implementation>>
+StaffEventBus    ..> OrdersEventBus         : <<Implementation>>
+
+@enduml
