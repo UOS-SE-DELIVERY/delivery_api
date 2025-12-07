@@ -261,15 +261,15 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                     multiplier=None
                 )
 
-            # 기본 아이템 스냅샷
+            # 기본 아이템 스냅샷 + 기본 수량 맵
             defaults = (DinnerTypeDefaultItem.objects
                         .filter(dinner_type=dinner)
                         .select_related("item")
                         .order_by("item__name"))
 
             created_default_map: dict[str, tuple[OrderDinnerItem, Decimal]] = {}
-            # 아이템 코드 → 생성된 OrderDinnerItem (디폴트/추가 통합 관리)
             created_item_map: dict[str, OrderDinnerItem] = {}
+            effective_default_qty: dict[str, Decimal] = {}
 
             for di in defaults:
                 unit = 0 if getattr(di, "included_in_base", False) else di.item.base_price_cents
@@ -279,10 +279,12 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                     unit_price_cents=unit,
                     is_default=True, change_type="unchanged"
                 )
-                created_default_map[di.item.code] = (odi, Decimal(di.default_qty))
+                q = Decimal(di.default_qty)
+                created_default_map[di.item.code] = (odi, q)
                 created_item_map[di.item.code] = odi
+                effective_default_qty[di.item.code] = q
 
-            # default_overrides 적용
+            # default_overrides 적용 (기본 수량 갱신)
             for ov in (dsel.get("default_overrides") or []):
                 code = str(ov["code"]).strip()
                 qty_override = Decimal(str(ov["qty"]))
@@ -299,8 +301,9 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                     "decreased" if qty_override < orig else "unchanged"
                 )
                 odi.save(update_fields=["final_qty", "change_type"])
+                effective_default_qty[code] = qty_override
 
-            # 디너 전용 items — 단일 행 유지(이미 있으면 합산 및 옵션 스냅샷 추가)
+            # 디너 전용 items — 기본/추가/옵션 가격 계산
             for it in pack.get("items", []):
                 item = MenuItem.objects.filter(code=it["code"], active=True).first()
                 if not item:
@@ -313,48 +316,45 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                 unit_item_cents, snaps = calc_item_unit_cents(item, sel_opts)
                 opt_delta_per_unit = sum(int(s["price_delta_cents"] or 0) for s in snaps)
 
-                qty_item = Decimal(it["qty"])
-                target = created_item_map.get(item.code)
-                is_default_target = bool(target and getattr(target, "is_default", False))
-                default_qty = Decimal(getattr(target, "final_qty", 0) or 0) if is_default_target else Decimal("0")
+                qty_extra = Decimal(it["qty"])
+                base_default_qty = effective_default_qty.get(item.code, Decimal("0"))
 
                 line_sub = 0
-                # 1) 기본 포함 아이템에 대해 qty=0이면 "옵션만" 기본 수량에 적용
-                if is_default_target and qty_item == 0:
-                    if opt_delta_per_unit and default_qty > 0:
-                        line_sub += as_cents_int(Decimal(opt_delta_per_unit) * default_qty)
-                        effective_qty_for_discount = default_qty
-                    else:
-                        effective_qty_for_discount = None
-                else:
-                    # 2) 그 외에는 qty만큼 새로 추가(기본+옵션 전체 단가)
-                    if qty_item > 0:
-                        line_sub += as_cents_int(Decimal(unit_item_cents) * qty_item)
-                        effective_qty_for_discount = qty_item
-                    else:
-                        effective_qty_for_discount = None
 
-                if line_sub > 0 and effective_qty_for_discount is not None:
+                # 기본 구성품에 대한 "옵션 delta" 과금
+                if base_default_qty > 0 and opt_delta_per_unit:
+                    line_sub += as_cents_int(Decimal(opt_delta_per_unit) * base_default_qty)
+
+                # 추가분에 대한 전체 단가 과금
+                if qty_extra > 0:
+                    line_sub += as_cents_int(Decimal(unit_item_cents) * qty_extra)
+
+                if line_sub > 0:
                     subtotal += line_sub
-                    item_lines_for_discount.append({
-                        "code": item.code,
-                        "qty": str(effective_qty_for_discount),
-                    })
+                    physical_qty_for_discount = base_default_qty + qty_extra
+                    if physical_qty_for_discount > 0:
+                        item_lines_for_discount.append({
+                            "code": item.code,
+                            "qty": str(physical_qty_for_discount),
+                        })
 
-                # 행 스냅샷 갱신/생성
+                # 스냅샷 행 갱신/생성
+                target = created_item_map.get(item.code)
                 if target:
-                    if qty_item > 0:
-                        target.final_qty = Decimal(target.final_qty) + qty_item
+                    # 추가분 수량만 더해준다(기본 수량은 이미 반영됨)
+                    if qty_extra > 0:
+                        target.final_qty = Decimal(target.final_qty) + qty_extra
                         if target.change_type in ("unchanged", "decreased", "removed"):
                             target.change_type = "added"
+                    # 단가: 옵션이 붙은 단가가 더 크면 갱신
                     if (target.unit_price_cents or 0) < unit_item_cents:
                         target.unit_price_cents = unit_item_cents
                     target.save(update_fields=["final_qty", "change_type", "unit_price_cents"])
                 else:
-                    if qty_item > 0:
+                    if qty_extra > 0:
                         target = OrderDinnerItem.objects.create(
                             order_dinner=od, item=item,
-                            final_qty=qty_item,
+                            final_qty=qty_extra,
                             unit_price_cents=unit_item_cents,
                             is_default=False, change_type="added"
                         )
@@ -362,7 +362,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
                     else:
                         target = None
 
-                # 옵션 스냅샷은 실제 라인이 있을 때만 생성(디폴트 행 포함)
+                # 옵션 스냅샷은 행이 있을 때만 생성
                 if target:
                     for sopt in snaps:
                         OrderItemOption.objects.create(
@@ -503,16 +503,16 @@ class OrderPricePreviewAPIView(APIView):
                 }).data)
                 all_dinner_option_ids.append(dop.pk)
 
-            # 기본 아이템 삭제/감소(표시)
+            subtotal += as_cents_int(Decimal(unit_cents) * qty)
+
+            # 기본 아이템 맵 + override 후 기본 수량
             default_map = {
                 di.item.code: di
                 for di in DinnerTypeDefaultItem.objects
                 .filter(dinner_type=dinner).select_related("item")
             }
-            # 기본 포함 아이템의 "최종" 수량(override 반영)
             effective_default_qty: dict[str, Decimal] = {
-                code: Decimal(str(di.default_qty))
-                for code, di in default_map.items()
+                code: Decimal(str(di.default_qty)) for code, di in default_map.items()
             }
 
             for ov in (dsel.get("default_overrides") or []):
@@ -536,9 +536,7 @@ class OrderPricePreviewAPIView(APIView):
                         "value_cents": 0,
                     }).data)
 
-            subtotal += as_cents_int(Decimal(unit_cents) * qty)
-
-            # 디너 전용 items 미리보기 라인
+            # 디너 전용 items 미리보기 라인(기본 옵션 delta + 추가분 전체 단가)
             for it in pack.get("items", []):
                 item = MenuItem.objects.filter(code=it["code"], active=True).first()
                 if not item:
@@ -551,40 +549,35 @@ class OrderPricePreviewAPIView(APIView):
                 unit_item_cents, snaps = calc_item_unit_cents(item, sel_opts)
                 opt_delta_per_unit = sum(int(s["price_delta_cents"] or 0) for s in snaps)
 
-                qty_item = Decimal(it["qty"])
-                code = item.code
-                is_default = code in effective_default_qty
-                default_qty = effective_default_qty.get(code, Decimal("0"))
+                qty_extra = Decimal(it["qty"])
+                base_default_qty = effective_default_qty.get(item.code, Decimal("0"))
 
                 line_sub = 0
-                if is_default and qty_item == 0:
-                    # 기본 포함 아이템 + 옵션만 적용
-                    if opt_delta_per_unit and default_qty > 0:
-                        line_sub += as_cents_int(Decimal(opt_delta_per_unit) * default_qty)
-                        qty_for_display = default_qty
-                    else:
-                        qty_for_display = None
-                else:
-                    if qty_item > 0:
-                        line_sub += as_cents_int(Decimal(unit_item_cents) * qty_item)
-                        qty_for_display = qty_item
-                    else:
-                        qty_for_display = None
 
-                if line_sub <= 0 or qty_for_display is None:
+                # 기본 구성품에 대한 옵션 delta
+                if base_default_qty > 0 and opt_delta_per_unit:
+                    line_sub += as_cents_int(Decimal(opt_delta_per_unit) * base_default_qty)
+
+                # 추가분에 대한 전체 단가
+                if qty_extra > 0:
+                    line_sub += as_cents_int(Decimal(unit_item_cents) * qty_extra)
+
+                if line_sub <= 0:
                     continue
 
-                subtotal += line_sub
-
                 snaps_norm = [{**snap} for snap in snaps]
+                physical_qty = base_default_qty + qty_extra
+
                 line_items.append(LineItemOutSerializer({
                     "item_code": item.code,
                     "name": f"{item.name} @ {dinner.name}",
-                    "qty": qty_for_display,
+                    "qty": physical_qty,
                     "unit_price_cents": unit_item_cents,
                     "options": [LineOptionOutSerializer(snap).data for snap in snaps_norm],
                     "subtotal_cents": line_sub,
                 }).data)
+
+                subtotal += line_sub
 
         # 할인(대표: 첫 묶음 기준)
         rep = packs[0]["dinner"]
@@ -743,7 +736,7 @@ class OrderUpdateAPIView(APIView):
         subtotal = 0
         dinner_option_ids: list[int] = []
 
-        for idx, pack in enumerate(packs):
+        for pack in packs:
             dsel = pack["dinner"]
             dinner = DinnerType.objects.filter(code=dsel["code"], active=True).first()
             if not dinner:
@@ -790,7 +783,7 @@ class OrderUpdateAPIView(APIView):
                     multiplier=None
                 )
 
-            # 기본 포함 아이템 스냅샷
+            # 기본 포함 아이템 스냅샷 + 기본 수량 맵
             defaults = (DinnerTypeDefaultItem.objects
                         .filter(dinner_type=dinner)
                         .select_related("item")
@@ -798,6 +791,7 @@ class OrderUpdateAPIView(APIView):
 
             created_default_map: dict[str, tuple[OrderDinnerItem, Decimal]] = {}
             created_item_map: dict[str, OrderDinnerItem] = {}
+            effective_default_qty: dict[str, Decimal] = {}
 
             for di in defaults:
                 unit = 0 if getattr(di, "included_in_base", False) else di.item.base_price_cents
@@ -807,8 +801,10 @@ class OrderUpdateAPIView(APIView):
                     unit_price_cents=unit,
                     is_default=True, change_type="unchanged"
                 )
-                created_default_map[di.item.code] = (odi, Decimal(di.default_qty))
+                q = Decimal(di.default_qty)
+                created_default_map[di.item.code] = (odi, q)
                 created_item_map[di.item.code] = odi
+                effective_default_qty[di.item.code] = q
 
             # default_overrides
             for ov in (dsel.get("default_overrides") or []):
@@ -826,8 +822,9 @@ class OrderUpdateAPIView(APIView):
                     "decreased" if qty_override < orig else "unchanged"
                 )
                 odi.save(update_fields=["final_qty", "change_type"])
+                effective_default_qty[code] = qty_override
 
-            # 디너 전용 items — 단일 행 유지
+            # 디너 전용 items — 기본 옵션 delta + 추가분 전체 단가
             for it in (pack.get("items") or []):
                 item = MenuItem.objects.filter(code=it["code"], active=True).first()
                 if not item:
@@ -836,36 +833,32 @@ class OrderUpdateAPIView(APIView):
                 unit_item_cents, snaps = calc_item_unit_cents(item, sel_opts)
                 opt_delta_per_unit = sum(int(s["price_delta_cents"] or 0) for s in snaps)
 
-                qty_item = Decimal(it["qty"])
-                target = created_item_map.get(item.code)
-                is_default_target = bool(target and getattr(target, "is_default", False))
-                default_qty = Decimal(getattr(target, "final_qty", 0) or 0) if is_default_target else Decimal("0")
+                qty_extra = Decimal(it["qty"])
+                base_default_qty = effective_default_qty.get(item.code, Decimal("0"))
 
                 line_sub = 0
-                if is_default_target and qty_item == 0:
-                    # 기본 포함 아이템 + 옵션만 적용
-                    if opt_delta_per_unit and default_qty > 0:
-                        line_sub += as_cents_int(Decimal(opt_delta_per_unit) * default_qty)
-                else:
-                    if qty_item > 0:
-                        line_sub += as_cents_int(Decimal(unit_item_cents) * qty_item)
+                if base_default_qty > 0 and opt_delta_per_unit:
+                    line_sub += as_cents_int(Decimal(opt_delta_per_unit) * base_default_qty)
+                if qty_extra > 0:
+                    line_sub += as_cents_int(Decimal(unit_item_cents) * qty_extra)
 
                 if line_sub > 0:
                     subtotal += line_sub
 
+                target = created_item_map.get(item.code)
                 if target:
-                    if qty_item > 0:
-                        target.final_qty = Decimal(target.final_qty) + qty_item
+                    if qty_extra > 0:
+                        target.final_qty = Decimal(target.final_qty) + qty_extra
                         if target.change_type in ("unchanged", "decreased", "removed"):
                             target.change_type = "added"
                     if (target.unit_price_cents or 0) < unit_item_cents:
                         target.unit_price_cents = unit_item_cents
                     target.save(update_fields=["final_qty", "change_type", "unit_price_cents"])
                 else:
-                    if qty_item > 0:
+                    if qty_extra > 0:
                         target = OrderDinnerItem.objects.create(
                             order_dinner=od, item=item,
-                            final_qty=qty_item,
+                            final_qty=qty_extra,
                             unit_price_cents=unit_item_cents,
                             is_default=False, change_type="added"
                         )

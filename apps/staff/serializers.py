@@ -47,10 +47,12 @@ class OrderItemOptionSerializer(serializers.ModelSerializer):
         model = OrderItemOption
         fields = ("id", "option_group_name", "option_name", "price_delta_cents", "multiplier")
 
+
 class OrderDinnerOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderDinnerOption
         fields = ("id", "option_group_name", "option_name", "price_delta_cents", "multiplier")
+
 
 class OrderDinnerItemSerializer(serializers.ModelSerializer):
     item = serializers.SerializerMethodField()
@@ -72,10 +74,12 @@ class OrderDinnerItemSerializer(serializers.ModelSerializer):
 
     def get_item(self, obj):
         # MenuItem 스냅샷: id + name만 노출(이름 필드가 없을 가능성 대비 getattr)
+        item = getattr(obj, "item", None)
         return {
             "id": getattr(obj, "item_id", None),
-            "name": getattr(getattr(obj, "name", None), "name", None),
+            "name": getattr(item, "name", None),
         }
+
 
 class OrderDinnerSerializer(serializers.ModelSerializer):
     dinner_type = serializers.SerializerMethodField()
@@ -87,8 +91,8 @@ class OrderDinnerSerializer(serializers.ModelSerializer):
         model = OrderDinner
         fields = (
             "id",
-            "dinner_type",      # {id, name}
-            "style",            # {id, name}
+            "dinner_type",      # {id, code, name}
+            "style",            # {id, code, name}
             "person_label",
             "quantity",
             "base_price_cents",
@@ -100,11 +104,24 @@ class OrderDinnerSerializer(serializers.ModelSerializer):
 
     def get_dinner_type(self, obj):
         dt = getattr(obj, "dinner_type", None)
-        return {"id": getattr(dt, "id", None), "name": getattr(dt, "name", None)}
+        if not dt:
+            return {"id": None, "code": None, "name": None}
+        return {
+            "id": getattr(dt, "id", None),
+            "code": getattr(dt, "code", None),
+            "name": getattr(dt, "name", None),
+        }
 
     def get_style(self, obj):
         st = getattr(obj, "style", None)
-        return {"id": getattr(st, "id", None), "name": getattr(st, "name", None)}
+        if not st:
+            return {"id": None, "code": None, "name": None}
+        return {
+            "id": getattr(st, "id", None),
+            "code": getattr(st, "code", None),
+            "name": getattr(st, "name", None),
+        }
+
 
 class StaffOrderDetailSerializer(serializers.ModelSerializer):
     dinners = OrderDinnerSerializer(many=True, read_only=True)
@@ -160,12 +177,14 @@ class StaffOrderDetailSerializer(serializers.ModelSerializer):
             "valid_until": getattr(m, "valid_until", None),
         }
 
+
 class InventoryItemUpdateSerializer(serializers.Serializer):
     code = serializers.CharField()
     qty = serializers.IntegerField(min_value=0, required=False)
     delta = serializers.IntegerField(required=False)
     active = serializers.BooleanField(required=False)
     reason = serializers.CharField(allow_blank=True, required=False)
+
 
 class InventoryItemPartialUpdateSerializer(serializers.Serializer):
     qty = serializers.IntegerField(min_value=0, required=False)

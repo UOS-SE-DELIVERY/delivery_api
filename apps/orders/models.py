@@ -9,6 +9,7 @@ from apps.catalog.models import (
     DinnerType, ServingStyle, MenuItem
 )
 
+
 class OrderStatus(models.TextChoices):
     PENDING   = "pending", "Pending"
     PREP      = "preparing", "Preparing"
@@ -16,9 +17,11 @@ class OrderStatus(models.TextChoices):
     DELIVERED = "delivered", "Delivered"
     CANCELED  = "canceled", "Canceled"
 
+
 class OrderSource(models.TextChoices):
     GUI   = "GUI",   "GUI"
     VOICE = "VOICE", "VOICE"
+
 
 class Order(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -49,33 +52,104 @@ class Order(models.Model):
 
     class Meta:
         db_table = "orders"
-        indexes = [models.Index(fields=["customer", "-ordered_at"], name="idx_orders_customer_recent")]
+        indexes = [
+            models.Index(
+                fields=["customer", "-ordered_at"],
+                name="idx_orders_customer_recent",
+            )
+        ]
 
-    def __str__(self): return f"Order#{self.id}"
-
+    def __str__(self) -> str:
+        return f"Order#{self.id}"
 
     # ===== Domain helpers (refactor) =====
     def _append_staff_op(self, event: str, by: int | None, note: str | None = None) -> None:
+        """
+        staff_ops에 이벤트 로그를 쌓는다.
+        orders_notify() 트리거가 'action' 필드를 보고 ready 여부를 계산하므로
+        event와 action을 동일하게 넣어 준다.
+        """
         m = dict(self.meta or {}) if self.meta else {}
         ops = list(m.get("staff_ops", []))
         from django.utils import timezone as _tz
-        ops.append({"event": event, "by": by, "at": _tz.now().isoformat(), "note": note or ""})
+
+        entry = {
+            "event": event,
+            "action": event,  # PG 함수는 op->>'action'을 참조하므로 둘 다 채운다.
+            "by": by,
+            "at": _tz.now().isoformat(),
+            "note": note or "",
+        }
+        ops.append(entry)
         m["staff_ops"] = ops
         self.meta = m
 
-    def _notify(self, event_name: str, payload: dict) -> None:
-        # Minimal Postgres NOTIFY to integrate with staff SSE (channel: orders_events)
+    def _compute_ready_flag(self) -> bool:
+        """
+        meta.staff_ops 안에 mark_ready 기록이 있는지로 ready 여부를 계산한다.
+        'action' 또는 'event' 둘 중 하나가 mark_ready면 ready=True.
+        """
+        meta = self.meta or {}
+        ops = meta.get("staff_ops") or []
+        if not isinstance(ops, list):
+            return False
+
+        for op in ops:
+            if not isinstance(op, dict):
+                continue
+            action = op.get("action") or op.get("event")
+            if action == "mark_ready":
+                return True
+        return False
+
+    def _notify(self, event_name: str, payload: dict | None = None) -> None:
+        """
+        Postgres NOTIFY를 통해 staff SSE에 이벤트를 보낸다.
+
+        항상 다음 정보를 포함하도록 확장했다.
+        - event      : 논리 이벤트 이름(order_created, order_status_changed, ...)
+        - order_id   : 주문 PK
+        - id         : order_id와 동일(기존 payload와 호환)
+        - status     : 현재 주문 status (또는 payload에서 override)
+        - ready      : meta.staff_ops 기반 ready 플래그
+        - ordered_at : ISO8601 문자열
+        - order      : OrderOutSerializer 스냅샷 (bootstrap과 동일한 구조)
+        """
         try:
             from django.conf import settings as _settings
             from django.db import connections as _connections, transaction as _tx
             import json as _json
+
+            msg = dict(payload or {})
+
+            oid = getattr(self, "id", getattr(self, "pk", None))
+            if oid is not None:
+                msg.setdefault("order_id", oid)
+                msg.setdefault("id", oid)
+
+            # status / ready / ordered_at 기본값 채우기
+            if "status" not in msg and hasattr(self, "status"):
+                msg["status"] = self.status
+            if "ready" not in msg:
+                msg["ready"] = self._compute_ready_flag()
+            if "ordered_at" not in msg and getattr(self, "ordered_at", None) is not None:
+                msg["ordered_at"] = self.ordered_at.isoformat()
+
+            # full order 스냅샷 추가 (bootstrap과 동일한 구조)
+            try:
+                from .serializers import OrderOutSerializer
+                msg.setdefault("order", OrderOutSerializer(self).data)
+            except Exception:
+                # 직렬화 실패해도 최소 정보만 가진 이벤트는 날린다.
+                pass
+
+            msg.setdefault("event", event_name)
+
             channels = list(getattr(_settings, "ORDERS_NOTIFY_CHANNELS", ["orders_events"]))
             using = "default"
-            msg = dict(payload or {})
-            msg.setdefault("event", event_name)
             raw = _json.dumps(msg, ensure_ascii=False)
 
-            def _do_notify():
+            def _do_notify() -> None:
                 with _connections[using].cursor() as cur:
                     for ch in channels:
                         cur.execute("SELECT pg_notify(%s, %s)", [ch, raw])
@@ -85,7 +159,7 @@ class Order(models.Model):
             else:
                 _do_notify()
         except Exception:
-            # No-op on failure
+            # NOTIFY 실패해도 비즈니스 로직까지 죽이지 않는다.
             pass
 
     # ===== State transitions (behavior methods) =====
@@ -97,7 +171,14 @@ class Order(models.Model):
             self.status = OrderStatus.PREP
             self._append_staff_op("accept", by_staff_id)
             self.save(update_fields=["status", "meta"])
-            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status})
+            # 상태 전이 이벤트 (preparing)
+            self._notify(
+                "order_status_changed",
+                {
+                    "order_id": getattr(self, "id", getattr(self, "pk", None)),
+                    "status": self.status,
+                },
+            )
         return self
 
     def mark_ready(self, by_staff_id: int | None = None) -> "Order":
@@ -107,7 +188,17 @@ class Order(models.Model):
         with _tx.atomic():
             self._append_staff_op("mark_ready", by_staff_id)
             self.save(update_fields=["meta"])
-            self._notify("order_updated", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "ready": True})
+            # ready 상태로 승격: 상태 이벤트로 취급하고,
+            # SSE payload에는 ready=True + full order가 포함된다.
+            self._notify(
+                "order_status_changed",
+                {
+                    "order_id": getattr(self, "id", getattr(self, "pk", None)),
+                    # DB status는 여전히 preparing이지만,
+                    # ready 플래그와 full order 스냅샷이 함께 나간다.
+                    "status": self.status,
+                },
+            )
         return self
 
     def out_for_delivery(self, by_staff_id: int | None = None) -> "Order":
@@ -118,7 +209,13 @@ class Order(models.Model):
             self.status = OrderStatus.OUT
             self._append_staff_op("out_for_delivery", by_staff_id)
             self.save(update_fields=["status", "meta"])
-            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status})
+            self._notify(
+                "order_status_changed",
+                {
+                    "order_id": getattr(self, "id", getattr(self, "pk", None)),
+                    "status": self.status,
+                },
+            )
         return self
 
     def deliver(self, by_staff_id: int | None = None) -> "Order":
@@ -129,7 +226,13 @@ class Order(models.Model):
             self.status = OrderStatus.DELIVERED
             self._append_staff_op("deliver", by_staff_id)
             self.save(update_fields=["status", "meta"])
-            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status})
+            self._notify(
+                "order_status_changed",
+                {
+                    "order_id": getattr(self, "id", getattr(self, "pk", None)),
+                    "status": self.status,
+                },
+            )
         return self
 
     def cancel(self, by_staff_id: int | None = None, reason: str | None = None) -> "Order":
@@ -140,7 +243,14 @@ class Order(models.Model):
             self.status = OrderStatus.CANCELED
             self._append_staff_op("cancel", by_staff_id, reason)
             self.save(update_fields=["status", "meta"])
-            self._notify("order_status_changed", {"order_id": getattr(self, "id", getattr(self, "pk", None)), "status": self.status, "reason": reason or ""})
+            self._notify(
+                "order_status_changed",
+                {
+                    "order_id": getattr(self, "id", getattr(self, "pk", None)),
+                    "status": self.status,
+                    "reason": reason or "",
+                },
+            )
         return self
 
 
@@ -158,12 +268,14 @@ class OrderDinner(models.Model):
     class Meta:
         db_table = "order_dinner"
 
+
 class ChangeType(models.TextChoices):
     UNCHANGED = "unchanged", "Unchanged"
     ADDED     = "added", "Added"
     REMOVED   = "removed", "Removed"
     INCREASED = "increased", "Increased"
     DECREASED = "decreased", "Decreased"
+
 
 class OrderDinnerItem(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -178,6 +290,7 @@ class OrderDinnerItem(models.Model):
         db_table = "order_dinner_item"
         unique_together = (("order_dinner", "item"),)
 
+
 class OrderItemOption(models.Model):
     id = models.BigAutoField(primary_key=True)
     order_dinner_item = models.ForeignKey(OrderDinnerItem, on_delete=models.CASCADE, related_name="options")
@@ -189,6 +302,7 @@ class OrderItemOption(models.Model):
     class Meta:
         db_table = "order_item_option"
 
+
 class OrderDinnerOption(models.Model):
     id = models.BigAutoField(primary_key=True)
     order_dinner = models.ForeignKey(OrderDinner, on_delete=models.CASCADE, related_name="options")
@@ -199,3 +313,24 @@ class OrderDinnerOption(models.Model):
 
     class Meta:
         db_table = "order_dinner_option"
+
+
+# ===== Signals: order_created 시 full SSE 이벤트 송출 =====
+from django.db.models.signals import post_save  # noqa: E402
+from django.dispatch import receiver  # noqa: E402
+
+
+@receiver(post_save, sender=Order)
+def _order_created_notify(sender, instance: Order, created: bool, **kwargs) -> None:
+    """
+    새 Order가 INSERT 되었을 때 order_created 이벤트를 한 번 쏜다.
+    payload에는 최소 order_id만 넣고, 나머지(ready/status/order 전체)는
+    _notify()에서 채우도록 한다.
+    """
+    if not created:
+        return
+    try:
+        instance._notify("order_created", {"order_id": instance.pk})
+    except Exception:
+        # NOTIFY 실패해도 트랜잭션은 그대로 진행
+        pass
