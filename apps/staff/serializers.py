@@ -54,12 +54,14 @@ class OrderDinnerOptionSerializer(serializers.ModelSerializer):
 
 class OrderDinnerItemSerializer(serializers.ModelSerializer):
     item = serializers.SerializerMethodField()
+    item_code = serializers.CharField(source="item.code", read_only=True)
     options = OrderItemOptionSerializer(many=True, read_only=True)
 
     class Meta:
         model = OrderDinnerItem
         fields = (
             "id",
+            "item_code",
             "item",            # {id, name}
             "final_qty",
             "unit_price_cents",
@@ -72,7 +74,7 @@ class OrderDinnerItemSerializer(serializers.ModelSerializer):
         # MenuItem 스냅샷: id + name만 노출(이름 필드가 없을 가능성 대비 getattr)
         return {
             "id": getattr(obj, "item_id", None),
-            "name": getattr(getattr(obj, "item", None), "name", None),
+            "name": getattr(getattr(obj, "name", None), "name", None),
         }
 
 class OrderDinnerSerializer(serializers.ModelSerializer):
